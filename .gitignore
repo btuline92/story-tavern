@@ -1,0 +1,39 @@
+# Dependencies & build artifacts
+node_modules
+dist
+out
+release
+*.tsbuildinfo
+.cache
+coverage
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Linting caches
+.eslintcache
+
+# Logs & temp
+*.log*
+*.tmp
+
+# Env (not used today but harmless to ignore preemptively)
+.env
+.env.local
+.env.*.local
+
+# Claude Code local config (if you run it inside this repo)
+.claude/
+
+# Anything you'd put next to a story/character for testing — kept out of source.
+# Workspaces are external (user-picked folder), so they won't appear here, but
+# guard against accidentally dropping one in the repo.
+workspace/
