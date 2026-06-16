@@ -16,6 +16,10 @@ export interface StreamRequest {
   apiKey: string
   generation: GenerationSettings
   entries: PromptEntry[]
+  /** Actively suppress reasoning where the provider supports it (OpenRouter
+   *  `reasoning.enabled=false`, OpenAI reasoning models → minimal). Used by the
+   *  image-tagging call so a thinking-capable model still responds fast. */
+  disableReasoning?: boolean
 }
 
 export interface StreamHandlers {
@@ -155,7 +159,16 @@ function openAICompatRequest(
   }
 
   // Reasoning param shape varies by provider.
-  if (reasoningOn) {
+  if (req.disableReasoning) {
+    // Best-effort active suppression for a fast, thinking-free response.
+    if (options.provider === 'openrouter') {
+      body.reasoning = { enabled: false }
+    } else if (isOpenAIReasoning) {
+      // o-series can't be fully disabled; minimal is the lowest effort available.
+      body.reasoning_effort = 'minimal'
+    }
+    // DeepSeek direct: reasoning is model-selected — pick a non-reasoning model to skip it.
+  } else if (reasoningOn) {
     if (options.provider === 'openai' && isOpenAIReasoning) {
       // OpenAI o-series uses reasoning_effort directly.
       body.reasoning_effort = req.generation.reasoning_level

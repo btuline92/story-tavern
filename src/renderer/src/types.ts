@@ -112,6 +112,7 @@ export interface ImageSettings {
   tagSystemPrompt: string
   tagInstruction: string
   tagTemperature: number
+  tagDisableThinking: boolean
   tagModelOverride: TagModelOverride
 }
 

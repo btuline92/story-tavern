@@ -65,6 +65,9 @@ export interface ImageSettings {
   tagSystemPrompt: string
   tagInstruction: string
   tagTemperature: number
+  /** Suppress extended thinking/reasoning for the tagging call (faster). When false,
+   *  tagging inherits the workspace generation reasoning_level. */
+  tagDisableThinking: boolean
   tagModelOverride: TagModelOverride
 }
 
@@ -152,6 +155,7 @@ const DEFAULT_IMAGE: ImageSettings = {
   tagSystemPrompt: DEFAULT_TAG_SYSTEM_PROMPT,
   tagInstruction: DEFAULT_TAG_INSTRUCTION,
   tagTemperature: 0.3,
+  tagDisableThinking: true,
   tagModelOverride: { enabled: false, provider: 'anthropic', model: '' }
 }
 

@@ -410,6 +410,18 @@ export function ImageSettingsPanel(): React.JSX.Element {
             min={0}
           />
         </div>
+        <div className="mb-4">
+          <Toggle
+            label="Disable thinking for tagging (faster)"
+            checked={draft.tagDisableThinking}
+            onChange={(v) => set('tagDisableThinking', v)}
+          />
+          <div className="text-xs text-ink-700 mt-1">
+            Tagging is a quick classification — skipping reasoning makes it faster. Off lets tagging
+            use the workspace reasoning level. (For DeepSeek, reasoning is set by model choice —
+            pick a non-reasoning model to skip it.)
+          </div>
+        </div>
         <div className="rounded-md border border-ink-200 bg-ink-50 p-3">
           <Toggle
             label="Use a different model for tagging"

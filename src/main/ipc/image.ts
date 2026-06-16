@@ -85,6 +85,7 @@ export function registerImageIpc(): void {
           return { error: `No API key saved for ${provider} (needed for image tagging).` }
 
         const entries = buildTagEntries({ image, character, passageText })
+        const disableThinking = image.tagDisableThinking
         const tagGen: GenerationSettings = {
           ...settings.generation,
           max_tokens: 600,
@@ -96,12 +97,20 @@ export function registerImageIpc(): void {
           stop_sequences: [],
           frequency_penalty: 0,
           presence_penalty: 0,
-          reasoning_level: 'off'
+          // Off when thinking is disabled for tagging; otherwise inherit the workspace level.
+          reasoning_level: disableThinking ? 'off' : settings.generation.reasoning_level
         }
 
         let tagError: string | null = null
         const metrics = await streamContinue(
-          { provider, model, apiKey, generation: tagGen, entries },
+          {
+            provider,
+            model,
+            apiKey,
+            generation: tagGen,
+            entries,
+            disableReasoning: disableThinking
+          },
           ctrl.signal,
           {
             onDelta: () => {},
