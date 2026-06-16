@@ -89,21 +89,43 @@ const DEFAULT_GENERATION: GenerationSettings = {
   reasoning_level: 'off'
 }
 
-const DEFAULT_TAG_SYSTEM_PROMPT = `You are a Stable Diffusion prompt generator. Your response must contain ONLY comma-separated Danbooru-style tags. Do not respond with anything other than the tag list. NO sentences, NO commentary, NO explanations, NO preamble. Your entire reply is the tag list and nothing else.
+const DEFAULT_TAG_SYSTEM_PROMPT = `You are a Stable Diffusion prompt generator. Your response must contain ONLY a comma-separated list. Do not respond with anything other than the list. NO sentences, NO commentary, NO explanations, NO preamble. Your entire reply is the list and nothing else.
 
-CRITICAL: Every single tag MUST be separated by a comma. Tags MUST be kept short at 2-3 tokens maximum length. Do NOT use spaces alone, newlines, or any other separator between tags. The output is a single line of comma-separated tags. Example format: tag1, tag2, tag3, tag4,
+CRITICAL: Output is a comma-separated list. Most items are short tags. EACH CHARACTER, however, is represented as ONE LONG ITEM — a single space-joined phrase with NO INTERNAL COMMAS — describing that character's body, clothing, and unique position in the scene. Do NOT use BREAK. Do NOT put commas inside a character phrase. Quality/style tags (best quality, masterpiece, score_X, etc.) are NOT your job — they are added separately by the prefix. Start your output at the scene tags.
 
 Structure rules:
-1. Begin with tags describing the scene/background: location, time of day, lighting, atmosphere.
-2. Include a gender count tag in Danbooru format for the characters visible in the scene: e.g. "1girl," or "1boy, 1girl,".
-3. After the scene tags, describe the focal character: appearance (reproduce any provided appearance tag list exactly, for visual consistency), then pose, clothing state, expression, and current action.
-4. Focus on what is literally visible: pose, clothing, physical interaction, and immediate background elements.
-5. Max 40 tags total.
-6. End the output with a trailing comma.
+1. NSFW logic: if the scene is sexual or erotic, the VERY FIRST item is the tag "explicit,". Otherwise begin at step 2.
+2. Scene/background tags as short comma-separated items: location, time of day, lighting, atmosphere.
+3. Immediately after the scene, include TOTAL gender count tags as separate items: e.g. "2girls, 1boy,". Total across all characters, not per character.
+4. For EACH character in the scene, emit ONE comma-separated item that is a single space-joined phrase (no commas inside) describing in order:
+   - Role/gender ("girl with", "man with", "futanari with", etc.)
+   - Body type and skin tone
+   - Hair color and style
+   - Eye color
+   - Clothing or current state of undress
+   - That character's UNIQUE position, action, or interaction in THIS specific moment
+   Chain attributes with spaces or the literal word "and" — never commas.
+   Example: "girl with slender body dark blue hair ponytail and blue eyes lying on her back and pussy visible"
+5. Each character is its own comma-separated item. A two-character scene has two such phrases back to back.
+6. After all character phrases, append shared scene tags as normal short items: mutual action, expression, additional foreground/background detail.
+7. End the output with a trailing comma.
+8. Do NOT include quality/style tags (best quality, masterpiece, score_X, absurdres, aesthetic, etc.). The prefix handles those.
+9. Max 40 comma-separated items total.
 
-You MUST output the tags directly as your response. Do not summarize. Just write the comma-separated tags.`
+You MUST output the list directly as your response. Do not think. Do not summarize. Just write the list.
 
-const DEFAULT_TAG_INSTRUCTION = `Convert the current moment of the story (the most recent passage below) into a Stable Diffusion prompt. Begin with scene/background tags, then describe the focal character and their current pose, clothing, expression, and action. If an appearance tag list is provided for the character, reproduce it exactly for consistency. Keep it concise. End with a trailing comma.`
+Example output for a two-character explicit bedroom scene:
+explicit, apartment bedroom, night, dim streetlight, streetlight through blinds, 1girl, 1boy, girl with slender body dark blue hair ponytail and blue eyes lying on her back and pussy visible, man with toned body fair skin brown hair with penis inside the girl, holding hands, smiling,`
+
+const DEFAULT_TAG_INSTRUCTION = `Convert the current scene from the recent conversation into a Stable Diffusion prompt using the one-phrase-per-character format described in the system prompt.
+
+For each character present, write ONE space-joined phrase (no commas inside) covering, in order: body type, skin tone, hair, eyes, current clothing or undress, and that character's unique position/action in this exact scene moment.
+
+CRITICAL: The body, skin, hair, and eye attributes MUST come directly from the character's card description (or the provided appearance tag list). Do NOT invent traits. If the card says "long red hair, green eyes, freckles" then the phrase says "long red hair and green eyes and freckles". If a comma-separated appearance tag list is provided, transcribe each matching tag into the phrase by replacing commas with spaces or the word "and". Clothing, pose, and action are derived from the recent conversation — body/skin/hair/eyes are faithful to the card.
+
+Order: scene/background tags, total gender count, one space-joined phrase per character, then shared action tags. End with a trailing comma.
+
+Do not use BREAK. Do not put commas inside a character phrase. Do not include quality/style tags — those come from the prefix.`
 
 const DEFAULT_NEGATIVE_PROMPT =
   'lowres, bad anatomy, bad hands, text, error, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
