@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { usePresets } from '../stores/presets'
 import { useStories } from '../stores/stories'
+import { CharacterPicker } from './CharacterPicker'
 
 interface DraftMeta {
   title: string
-  characterId: string | null
+  characterIds: string[]
   presetId: string | null
   premise: string
 }
@@ -69,7 +70,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
       initializedFor.current = active.meta.id
       setDraft({
         title: active.meta.title,
-        characterId: active.meta.character_id,
+        characterIds: active.meta.character_ids,
         presetId: active.meta.preset_id,
         premise: active.meta.premise
       })
@@ -80,7 +81,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     !!active &&
     !!draft &&
     (draft.title !== active.meta.title ||
-      draft.characterId !== active.meta.character_id ||
+      JSON.stringify(draft.characterIds) !== JSON.stringify(active.meta.character_ids) ||
       draft.presetId !== active.meta.preset_id ||
       draft.premise !== active.meta.premise)
 
@@ -94,7 +95,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
         try {
           await updateMeta(workspace, active.meta.id, {
             title: draft.title,
-            characterId: draft.characterId,
+            characterIds: draft.characterIds,
             presetId: draft.presetId,
             premise: draft.premise
           })
@@ -107,7 +108,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, draft?.title, draft?.characterId, draft?.presetId, draft?.premise])
+  }, [dirty, draft?.title, draft?.characterIds, draft?.presetId, draft?.premise])
 
   if (!active || !draft) return null
 
@@ -139,19 +140,23 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
             </div>
           </div>
           <div>
-            <Label>Character</Label>
-            <select
-              value={draft.characterId ?? ''}
-              onChange={(e) => setField('characterId', e.target.value || null)}
-              className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
-            >
-              <option value="">— None —</option>
-              {characters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <Label>Characters</Label>
+            <CharacterPicker
+              characters={characters}
+              selectedIds={draft.characterIds}
+              heightClass="max-h-60"
+              onToggle={(id) =>
+                setField(
+                  'characterIds',
+                  draft.characterIds.includes(id)
+                    ? draft.characterIds.filter((x) => x !== id)
+                    : [...draft.characterIds, id]
+                )
+              }
+            />
+            <div className="text-xs text-ink-700 mt-1">
+              All selected characters are sent to story generation and the image tagger.
+            </div>
           </div>
           <div>
             <Label>Preset</Label>

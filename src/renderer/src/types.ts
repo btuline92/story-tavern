@@ -150,7 +150,7 @@ export interface StoryMeta {
   id: string
   slug: string
   title: string
-  character_id: string | null
+  character_ids: string[]
   preset_id: string | null
   premise: string
   created_at: string

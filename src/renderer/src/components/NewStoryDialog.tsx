@@ -3,6 +3,7 @@ import { useCharacters } from '../stores/characters'
 import { usePresets } from '../stores/presets'
 import { useStories } from '../stores/stories'
 import { useWorkspace } from '../stores/workspace'
+import { CharacterPicker } from './CharacterPicker'
 
 interface Props {
   open: boolean
@@ -16,7 +17,7 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
   const create = useStories((s) => s.create)
 
   const [title, setTitle] = useState('')
-  const [characterId, setCharacterId] = useState<string>('')
+  const [characterIds, setCharacterIds] = useState<string[]>([])
   const [presetId, setPresetId] = useState<string>('')
   const [premise, setPremise] = useState('')
   const [creating, setCreating] = useState(false)
@@ -25,7 +26,7 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
   useEffect(() => {
     if (open) {
       setTitle('')
-      setCharacterId('')
+      setCharacterIds([])
       setPresetId('')
       setPremise('')
       setError(null)
@@ -36,11 +37,13 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
 
   if (!open) return null
 
-  const canCreate = title.trim().length > 0 && !!characterId
+  const canCreate = title.trim().length > 0 && characterIds.length > 0
+  const toggleChar = (id: string): void =>
+    setCharacterIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
   const onCreate = async (): Promise<void> => {
     if (!canCreate) {
-      setError('Title and character are required.')
+      setError('Title and at least one character are required.')
       return
     }
     setCreating(true)
@@ -48,7 +51,7 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
     try {
       await create(workspace, {
         title: title.trim(),
-        characterId,
+        characterIds,
         presetId: presetId || null,
         premise: premise.trim()
       })
@@ -61,8 +64,8 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-[32rem] max-w-[90vw] rounded-lg bg-white shadow-xl border border-ink-200 p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
+      <div className="w-[46rem] max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl border border-ink-200 p-6">
         <h3 className="text-xl font-semibold text-ink-900 mb-4">Start a new story</h3>
 
         <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
@@ -78,25 +81,15 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
         />
 
         <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
-          Character
+          Characters
         </label>
-        <select
-          value={characterId}
-          onChange={(e) => setCharacterId(e.target.value)}
-          className="w-full rounded-md border border-ink-200 px-3 py-2 mb-4 bg-white"
-        >
-          <option value="">— Select a character —</option>
-          {characters.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        {characters.length === 0 && (
-          <div className="text-xs text-ink-700 -mt-3 mb-4">
-            No characters yet. Create or import one first.
-          </div>
-        )}
+        <div className="mb-4">
+          <CharacterPicker
+            characters={characters}
+            selectedIds={characterIds}
+            onToggle={toggleChar}
+          />
+        </div>
 
         <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
           Preset (optional)

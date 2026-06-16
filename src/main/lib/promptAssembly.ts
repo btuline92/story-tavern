@@ -9,7 +9,7 @@ export interface PromptEntry {
 }
 
 export interface AssemblyContext {
-  character: TavernV2Data | null
+  characters: TavernV2Data[]
   storyTitle: string
   storyPremise: string
   chapters: Array<{ number: number; title: string; outline: string; content: string }>
@@ -17,13 +17,36 @@ export interface AssemblyContext {
   userNote?: string
 }
 
+function charNames(ctx: AssemblyContext): string {
+  const names = ctx.characters.map((c) => c.name).filter((n) => n && n.trim())
+  return names.length > 0 ? names.join(' and ') : 'the character'
+}
+
 function interpolate(text: string, ctx: AssemblyContext): string {
-  const charName = ctx.character?.name || 'the character'
+  // {{scenario}}/{{personality}} are single-value macros; use the first character.
+  const first = ctx.characters[0]
   return text
-    .replace(/\{\{char\}\}/g, charName)
+    .replace(/\{\{char\}\}/g, charNames(ctx))
     .replace(/\{\{user\}\}/g, 'the protagonist')
-    .replace(/\{\{scenario\}\}/g, ctx.character?.scenario ?? '')
-    .replace(/\{\{personality\}\}/g, ctx.character?.personality ?? '')
+    .replace(/\{\{scenario\}\}/g, first?.scenario ?? '')
+    .replace(/\{\{personality\}\}/g, first?.personality ?? '')
+}
+
+/** Combine one character field across all characters into a single labeled block. */
+function combineCharField(
+  ctx: AssemblyContext,
+  select: (c: TavernV2Data) => string,
+  label: string
+): PromptEntry | null {
+  const blocks = ctx.characters
+    .map((c) => ({ name: c.name, value: select(c) }))
+    .filter((b) => b.value && b.value.trim())
+  if (blocks.length === 0) return null
+  if (blocks.length === 1) {
+    return { role: 'system', content: `${label}:\n${blocks[0].value}` }
+  }
+  const body = blocks.map((b) => `## ${b.name || 'Character'}\n${b.value}`).join('\n\n')
+  return { role: 'system', content: `${label}:\n${body}` }
 }
 
 function manuscriptText(ctx: AssemblyContext): string {
@@ -58,21 +81,13 @@ function upcomingOutlinesText(ctx: AssemblyContext): string {
 function expandMarker(markerType: MarkerType, ctx: AssemblyContext): PromptEntry | null {
   switch (markerType) {
     case 'char_description':
-      return ctx.character?.description
-        ? { role: 'system', content: `Character description:\n${ctx.character.description}` }
-        : null
+      return combineCharField(ctx, (c) => c.description, 'Character description')
     case 'char_personality':
-      return ctx.character?.personality
-        ? { role: 'system', content: `Character personality:\n${ctx.character.personality}` }
-        : null
+      return combineCharField(ctx, (c) => c.personality, 'Character personality')
     case 'scenario':
-      return ctx.character?.scenario
-        ? { role: 'system', content: `Scenario:\n${ctx.character.scenario}` }
-        : null
+      return combineCharField(ctx, (c) => c.scenario, 'Scenario')
     case 'dialogue_examples':
-      return ctx.character?.mes_example
-        ? { role: 'system', content: `Dialogue examples:\n${ctx.character.mes_example}` }
-        : null
+      return combineCharField(ctx, (c) => c.mes_example, 'Dialogue examples')
     case 'story_premise':
       return ctx.storyPremise.trim()
         ? { role: 'system', content: `Story premise:\n${ctx.storyPremise.trim()}` }

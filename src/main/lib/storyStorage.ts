@@ -8,7 +8,7 @@ export interface StoryMeta {
   id: string
   slug: string
   title: string
-  character_id: string | null
+  character_ids: string[]
   preset_id: string | null
   premise: string
   created_at: string
@@ -17,13 +17,24 @@ export interface StoryMeta {
 }
 
 function withDefaults(
-  meta: Partial<StoryMeta> & { id: string; slug: string; title: string; prompt_id?: string | null }
+  meta: Partial<StoryMeta> & {
+    id: string
+    slug: string
+    title: string
+    prompt_id?: string | null
+    /** Back-compat: stories created before multi-character support stored a single id. */
+    character_id?: string | null
+  }
 ): StoryMeta {
   return {
     id: meta.id,
     slug: meta.slug,
     title: meta.title,
-    character_id: meta.character_id ?? null,
+    character_ids: Array.isArray(meta.character_ids)
+      ? meta.character_ids
+      : meta.character_id
+        ? [meta.character_id]
+        : [],
     // Back-compat: stories created before presets stored `prompt_id`. Reuse it as preset_id
     // since legacy prompts are migrated to presets with their original id.
     preset_id: meta.preset_id ?? meta.prompt_id ?? null,
@@ -200,7 +211,7 @@ export async function loadStory(workspace: string, id: string): Promise<StoryWit
 
 export interface CreateStoryInput {
   title: string
-  characterId: string | null
+  characterIds: string[]
   presetId: string | null
   premise?: string
 }
@@ -216,7 +227,7 @@ export async function createStory(
     id: ulid(),
     slug,
     title: input.title.trim() || 'Untitled story',
-    character_id: input.characterId,
+    character_ids: input.characterIds,
     preset_id: input.presetId,
     premise: input.premise ?? '',
     created_at: now,
@@ -239,7 +250,7 @@ export async function createStory(
 
 export interface StoryMetaUpdate {
   title?: string
-  characterId?: string | null
+  characterIds?: string[]
   presetId?: string | null
   premise?: string
   notes?: string
@@ -266,7 +277,7 @@ export async function updateStoryMeta(
     ...current,
     slug: nextSlug,
     title: nextTitle,
-    character_id: patch.characterId !== undefined ? patch.characterId : current.character_id,
+    character_ids: patch.characterIds !== undefined ? patch.characterIds : current.character_ids,
     preset_id: patch.presetId !== undefined ? patch.presetId : current.preset_id,
     premise: patch.premise !== undefined ? patch.premise : current.premise,
     notes: patch.notes !== undefined ? patch.notes : current.notes,

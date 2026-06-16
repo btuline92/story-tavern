@@ -23,27 +23,34 @@ export function combineTags(...parts: string[]): string {
  */
 export function buildTagEntries(opts: {
   image: ImageSettings
-  character: TavernV2Data | null
+  characters: TavernV2Data[]
   passageText: string
 }): PromptEntry[] {
-  const { image, character, passageText } = opts
+  const { image, characters, passageText } = opts
   const parts: string[] = []
 
   // Character reference comes FIRST — before the task and the story passage — so the model
-  // knows what the character looks like before it reads the scene. Appearance/description
+  // knows what each character looks like before it reads the scene. Appearance/description
   // are the source of truth for physical traits; the passage only supplies pose/action.
-  const charLines: string[] = []
-  if (character?.name) charLines.push(`Name: ${character.name}`)
-  const appearance = readCharacterImageTags(character).appearance_tags
-  if (appearance) charLines.push(`Appearance tags (reproduce these exactly): ${appearance}`)
-  if (character?.description) charLines.push(`Description: ${character.description}`)
-  if (character?.personality) charLines.push(`Personality: ${character.personality}`)
-  if (character?.scenario) charLines.push(`Scenario: ${character.scenario}`)
-  if (charLines.length > 0) {
+  const blocks = characters
+    .map((c, i) => {
+      const lines: string[] = []
+      if (c.name) lines.push(`Name: ${c.name}`)
+      const appearance = readCharacterImageTags(c).appearance_tags
+      if (appearance) lines.push(`Appearance tags (reproduce these exactly): ${appearance}`)
+      if (c.description) lines.push(`Description: ${c.description}`)
+      if (c.personality) lines.push(`Personality: ${c.personality}`)
+      if (lines.length === 0) return ''
+      const label = characters.length > 1 ? `Character ${i + 1}` : 'Character'
+      return `${label}:\n${lines.join('\n')}`
+    })
+    .filter((b) => b.length > 0)
+
+  if (blocks.length > 0) {
     parts.push(
-      'CHARACTER REFERENCE — derive the character’s body, skin, hair, and eyes from these ' +
-        'details (do NOT invent appearance):\n' +
-        charLines.join('\n')
+      'CHARACTER REFERENCE — derive each character’s body, skin, hair, and eyes from these ' +
+        'details (do NOT invent appearance):\n\n' +
+        blocks.join('\n\n')
     )
   }
 

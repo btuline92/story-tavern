@@ -7,7 +7,7 @@ import { getPreset, defaultPreset } from '../lib/presetStore'
 import { assemble } from '../lib/promptAssembly'
 import { streamContinue } from '../lib/streamGeneration'
 import { logApiCall } from '../lib/apiLogger'
-import { readCharacterData } from '../lib/characterData'
+import { readCharactersData } from '../lib/characterData'
 import type { ProviderId } from './providers'
 
 const activeStreams = new Map<string, AbortController>()
@@ -35,10 +35,10 @@ export function registerGenerationIpc(): void {
       const presetId = story.meta.preset_id ?? settings.activePresetId
       const preset = (presetId ? await getPreset(workspace, presetId) : null) ?? defaultPreset()
 
-      const character = await readCharacterData(workspace, story.meta.character_id)
+      const characters = await readCharactersData(workspace, story.meta.character_ids)
 
       const entries = assemble(preset, {
-        character,
+        characters,
         storyTitle: story.meta.title,
         storyPremise: story.meta.premise ?? '',
         chapters: story.chapters.map((c) => ({

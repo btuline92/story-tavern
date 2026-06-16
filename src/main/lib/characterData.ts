@@ -40,6 +40,37 @@ export async function readCharacterData(
   return null
 }
 
+/**
+ * Load multiple characters by id in the given order. Scans the characters dir once and
+ * matches all ids, so it's cheaper than calling readCharacterData per id. Missing ids are
+ * skipped (order of the survivors is preserved).
+ */
+export async function readCharactersData(
+  workspace: string,
+  ids: string[]
+): Promise<TavernV2Data[]> {
+  if (!ids || ids.length === 0) return []
+  const charactersDir = join(workspace, 'characters')
+  if (!existsSync(charactersDir)) return []
+  const byId = new Map<string, TavernV2Data>()
+  const entries = await readdir(charactersDir, { withFileTypes: true })
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+    try {
+      const text = await readFile(join(charactersDir, entry.name), 'utf-8')
+      const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
+      if (!match) continue
+      const fm = yamlLoad(match[1]) as CharacterFrontmatter
+      if (!fm.id || !ids.includes(fm.id)) continue
+      const body = match[2].replace(/^\r?\n/, '').replace(/\r?\n$/, '')
+      byId.set(fm.id, { ...fm.tavern_data, description: body || fm.tavern_data.description })
+    } catch {
+      /* skip */
+    }
+  }
+  return ids.map((id) => byId.get(id)).filter((c): c is TavernV2Data => c != null)
+}
+
 /** Appearance/negative tags Story Tavern stores in the card's extensions. */
 export interface StoryTavernCharacterImage {
   appearance_tags?: string

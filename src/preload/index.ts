@@ -124,7 +124,7 @@ export interface StoryMeta {
   id: string
   slug: string
   title: string
-  character_id: string | null
+  character_ids: string[]
   preset_id: string | null
   premise: string
   created_at: string
@@ -259,7 +259,7 @@ const api = {
       workspace: string,
       input: {
         title: string
-        characterId: string | null
+        characterIds: string[]
         presetId: string | null
         premise?: string
       }
@@ -269,7 +269,7 @@ const api = {
       id: string,
       patch: {
         title?: string
-        characterId?: string | null
+        characterIds?: string[]
         presetId?: string | null
         premise?: string
         notes?: string

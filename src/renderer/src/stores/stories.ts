@@ -47,14 +47,14 @@ interface StoriesState {
   closeActive: () => void
   create: (
     workspace: string,
-    input: { title: string; characterId: string | null; presetId: string | null; premise?: string }
+    input: { title: string; characterIds: string[]; presetId: string | null; premise?: string }
   ) => Promise<StoryWithChapters>
   updateMeta: (
     workspace: string,
     id: string,
     patch: {
       title?: string
-      characterId?: string | null
+      characterIds?: string[]
       presetId?: string | null
       premise?: string
       notes?: string

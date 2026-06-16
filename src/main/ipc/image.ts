@@ -8,7 +8,7 @@ import { readWorkspaceSettings } from './workspace'
 import { loadStory } from '../lib/storyStorage'
 import { streamContinue } from '../lib/streamGeneration'
 import { logApiCall } from '../lib/apiLogger'
-import { readCharacterData, readCharacterImageTags } from '../lib/characterData'
+import { readCharactersData, readCharacterImageTags } from '../lib/characterData'
 import {
   buildTagEntries,
   cleanTagResponse,
@@ -62,7 +62,7 @@ export function registerImageIpc(): void {
 
       const story = await loadStory(workspace, storyId)
       if (!story) return { error: `Story not found: ${storyId}` }
-      const character = await readCharacterData(workspace, story.meta.character_id)
+      const characters = await readCharactersData(workspace, story.meta.character_ids)
 
       const win = event.sender
       const progress = (phase: ImagePhase): void => {
@@ -84,7 +84,7 @@ export function registerImageIpc(): void {
         if (!apiKey)
           return { error: `No API key saved for ${provider} (needed for image tagging).` }
 
-        const entries = buildTagEntries({ image, character, passageText })
+        const entries = buildTagEntries({ image, characters, passageText })
         const disableThinking = image.tagDisableThinking
         const tagGen: GenerationSettings = {
           ...settings.generation,
@@ -151,9 +151,15 @@ export function registerImageIpc(): void {
         if (!tags) return { error: 'The LLM returned no tags.' }
 
         // --- 2. Build the positive/negative prompts ---
-        const charTags = readCharacterImageTags(character)
-        const positive = combineTags(image.promptPrefix, charTags.appearance_tags ?? '', tags)
-        const negative = combineTags(image.negativePrompt, charTags.negative_tags ?? '')
+        // Per-character appearance is embedded by the tagger (it has each character's appearance
+        // tags in the reference block), so we don't prepend appearance globally — that would
+        // detach it from the character's phrase in a multi-character scene. We do roll every
+        // character's negative tags into the shared negative prompt.
+        const positive = combineTags(image.promptPrefix, tags)
+        const negative = combineTags(
+          image.negativePrompt,
+          ...characters.map((c) => readCharacterImageTags(c).negative_tags ?? '')
+        )
         const seed =
           image.seed >= 0 ? image.seed : Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
 

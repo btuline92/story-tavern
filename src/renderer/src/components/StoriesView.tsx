@@ -180,7 +180,9 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   }
 
   const noChapters = active.chapters.length === 0
-  const character = characters.find((c) => c.id === active.meta.character_id) ?? null
+  const storyCharacters = active.meta.character_ids
+    .map((id) => characters.find((c) => c.id === id))
+    .filter((c): c is NonNullable<typeof c> => c != null)
 
   const onContinue = async (): Promise<void> => {
     await flushSave()
@@ -230,8 +232,10 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
           <div className="font-semibold text-ink-900 truncate" title={active.meta.title}>
             {active.meta.title}
           </div>
-          {character && (
-            <div className="text-xs text-ink-700 truncate mt-0.5">with {character.name}</div>
+          {storyCharacters.length > 0 && (
+            <div className="text-xs text-ink-700 truncate mt-0.5">
+              with {storyCharacters.map((c) => c.name).join(', ')}
+            </div>
           )}
         </div>
         <div className="px-3 py-2 border-b border-ink-200">
