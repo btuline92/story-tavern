@@ -1,4 +1,4 @@
-import type { GenerationSettings, ReasoningLevel } from '../ipc/workspace'
+import type { GenerationSettings, OpenRouterSettings, ReasoningLevel } from '../ipc/workspace'
 import type { ProviderId } from '../ipc/providers'
 import { toAnthropic, toOpenAI, type PromptEntry } from './promptAssembly'
 
@@ -20,6 +20,8 @@ export interface StreamRequest {
    *  `reasoning.enabled=false`, OpenAI reasoning models → minimal). Used by the
    *  image-tagging call so a thinking-capable model still responds fast. */
   disableReasoning?: boolean
+  /** OpenRouter provider routing — only applied when provider === 'openrouter'. */
+  openrouter?: OpenRouterSettings
 }
 
 export interface StreamHandlers {
@@ -179,6 +181,17 @@ function openAICompatRequest(
     }
     // DeepSeek direct: no API param — user picks a reasoning-capable model id
     // (e.g. deepseek-reasoner). The streamed `reasoning_content` will still be captured.
+  }
+
+  // OpenRouter provider routing: restrict/order providers and toggle fallbacks.
+  if (options.provider === 'openrouter' && req.openrouter) {
+    const { order, allowFallbacks } = req.openrouter
+    if (order.length > 0 || !allowFallbacks) {
+      body.provider = {
+        ...(order.length > 0 ? { order } : {}),
+        allow_fallbacks: allowFallbacks
+      }
+    }
   }
 
   if (req.generation.seed != null) body.seed = req.generation.seed

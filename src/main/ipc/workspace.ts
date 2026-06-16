@@ -71,12 +71,22 @@ export interface ImageSettings {
   tagModelOverride: TagModelOverride
 }
 
+export interface OpenRouterSettings {
+  /** Preferred OpenRouter provider order (provider names, e.g. "OpenAI", "Together").
+   *  Empty = let OpenRouter choose. Applies to story generation and image tagging. */
+  order: string[]
+  /** When false, OpenRouter only uses the providers in `order` and errors if none are
+   *  available. When true, it may fall back to other providers. */
+  allowFallbacks: boolean
+}
+
 export interface WorkspaceSettings {
   selectedProvider: ProviderId
   models: Record<ProviderId, string>
   activePresetId: string | null
   generation: GenerationSettings
   image: ImageSettings
+  openrouter: OpenRouterSettings
 }
 
 const DEFAULT_GENERATION: GenerationSettings = {
@@ -159,6 +169,19 @@ const DEFAULT_IMAGE: ImageSettings = {
   tagModelOverride: { enabled: false, provider: 'anthropic', model: '' }
 }
 
+const DEFAULT_OPENROUTER: OpenRouterSettings = {
+  order: [],
+  allowFallbacks: true
+}
+
+function mergeOpenRouter(raw: unknown): OpenRouterSettings {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<OpenRouterSettings>
+  return {
+    order: Array.isArray(r.order) ? r.order.filter((s): s is string => typeof s === 'string') : [],
+    allowFallbacks: typeof r.allowFallbacks === 'boolean' ? r.allowFallbacks : true
+  }
+}
+
 function mergeImage(raw: unknown): ImageSettings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<ImageSettings>
   const rawOverride = (r.tagModelOverride ?? {}) as Partial<TagModelOverride>
@@ -201,7 +224,8 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   },
   activePresetId: null,
   generation: { ...DEFAULT_GENERATION },
-  image: { ...DEFAULT_IMAGE }
+  image: { ...DEFAULT_IMAGE },
+  openrouter: { ...DEFAULT_OPENROUTER }
 }
 
 function mergeSettings(raw: unknown): WorkspaceSettings {
@@ -220,7 +244,8 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
     // Back-compat: older settings used activePromptId.
     activePresetId: r.activePresetId ?? r.activePromptId ?? null,
     generation,
-    image: mergeImage(r.image)
+    image: mergeImage(r.image),
+    openrouter: mergeOpenRouter(r.openrouter)
   }
 }
 

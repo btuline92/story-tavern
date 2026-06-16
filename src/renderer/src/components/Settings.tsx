@@ -5,6 +5,7 @@ import type { ProviderId } from '../types'
 import { ModelSelect } from './ModelSelect'
 import { GenerationSettingsPanel } from './GenerationSettings'
 import { ImageSettingsPanel } from './ImageSettings'
+import { OpenRouterRouting } from './OpenRouterRouting'
 
 const PROVIDERS: { id: ProviderId; name: string }[] = [
   { id: 'anthropic', name: 'Anthropic' },
@@ -167,6 +168,8 @@ export function Settings(): React.JSX.Element {
       {PROVIDERS.map((p) => (
         <ProviderRow key={p.id} provider={p.id} name={p.name} workspace={workspace} />
       ))}
+
+      <OpenRouterRouting />
 
       <GenerationSettingsPanel />
 

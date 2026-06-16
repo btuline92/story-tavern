@@ -54,12 +54,18 @@ export interface ImageSettings {
   tagModelOverride: TagModelOverride
 }
 
+export interface OpenRouterSettings {
+  order: string[]
+  allowFallbacks: boolean
+}
+
 export interface WorkspaceSettings {
   selectedProvider: ProviderId
   models: Record<ProviderId, string>
   activePresetId: string | null
   generation: GenerationSettings
   image: ImageSettings
+  openrouter: OpenRouterSettings
 }
 
 export interface ComfyObjectInfo {

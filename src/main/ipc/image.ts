@@ -109,7 +109,8 @@ export function registerImageIpc(): void {
             apiKey,
             generation: tagGen,
             entries,
-            disableReasoning: disableThinking
+            disableReasoning: disableThinking,
+            openrouter: settings.openrouter
           },
           ctrl.signal,
           {

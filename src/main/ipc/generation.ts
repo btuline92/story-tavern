@@ -73,7 +73,14 @@ export function registerGenerationIpc(): void {
         const start = Date.now()
         try {
           const metrics = await streamContinue(
-            { provider, model, apiKey, generation: settings.generation, entries },
+            {
+              provider,
+              model,
+              apiKey,
+              generation: settings.generation,
+              entries,
+              openrouter: settings.openrouter
+            },
             ctrl.signal,
             { onDelta: sendDelta, onReasoning: sendReasoning, onDone: sendDone, onError: sendError }
           )

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ImageSettings, ProviderId, WorkspaceSettings } from '../types'
+import type { ImageSettings, OpenRouterSettings, ProviderId, WorkspaceSettings } from '../types'
 
 interface SettingsState {
   settings: WorkspaceSettings | null
@@ -11,6 +11,7 @@ interface SettingsState {
   setModel: (workspace: string, provider: ProviderId, model: string) => Promise<void>
   setActivePresetId: (workspace: string, id: string | null) => Promise<void>
   setImage: (workspace: string, patch: Partial<ImageSettings>) => Promise<void>
+  setOpenRouter: (workspace: string, patch: Partial<OpenRouterSettings>) => Promise<void>
   saveKey: (provider: ProviderId, key: string) => Promise<void>
   deleteKey: (provider: ProviderId) => Promise<void>
 }
@@ -69,6 +70,14 @@ export const useSettings = create<SettingsState>((set, get) => ({
     const current = get().settings
     if (!current) return
     await persist(workspace, set, { ...current, image: { ...current.image, ...patch } })
+  },
+  setOpenRouter: async (workspace, patch) => {
+    const current = get().settings
+    if (!current) return
+    await persist(workspace, set, {
+      ...current,
+      openrouter: { ...current.openrouter, ...patch }
+    })
   },
   saveKey: async (provider, key) => {
     await window.api.keys.set(provider, key)
