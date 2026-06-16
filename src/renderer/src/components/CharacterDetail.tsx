@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { useWorkspace } from '../stores/workspace'
 import type { Character } from '../types'
@@ -242,12 +242,28 @@ export function CharacterDetail(): React.JSX.Element {
   const [saving, setSaving] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null)
   const [exportNotice, setExportNotice] = useState<string | null>(null)
+  // Tracks which character id the draft was initialized for. Only an id change re-inits.
+  const initializedFor = useRef<string | null>(null)
 
-  // Re-initialize draft when selection changes
+  // Initialize the draft ONLY when the selected character changes — never re-sync from the
+  // character object afterward. Saving (and renaming) reloads the characters list and hands us
+  // a new character object with the same id; re-syncing then would overwrite the user's draft
+  // mid-edit and make the inputs feel frozen. This mirrors the guarded pattern the story
+  // editors use to avoid the sync-vs-edit race.
   useEffect(() => {
-    setDraft(character ? draftFrom(character) : null)
-    setExportNotice(null)
-  }, [character?.id, character?.slug])
+    if (!character) {
+      setDraft(null)
+      setExportNotice(null)
+      initializedFor.current = null
+      return
+    }
+    if (initializedFor.current !== character.id) {
+      initializedFor.current = character.id
+      setDraft(draftFrom(character))
+      setExportNotice(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character?.id])
 
   // Load avatar
   useEffect(() => {
