@@ -11,6 +11,17 @@ function fmtDuration(ms: number): string {
   return `${m}m ${(s - m * 60).toFixed(0)}s`
 }
 
+/** Pretty-print a body if it parses as JSON; otherwise return it unchanged. */
+function pretty(s: string): string {
+  const t = s.trimStart()
+  if (!t.startsWith('{') && !t.startsWith('[')) return s
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2)
+  } catch {
+    return s
+  }
+}
+
 function StatusBadge({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
   const isError = entry.error != null || (entry.status != null && entry.status >= 400)
   const isOk = entry.status != null && entry.status >= 200 && entry.status < 300
@@ -28,12 +39,36 @@ function StatusBadge({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
 }
 
 function LogRow({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
+  const workspace = useWorkspace((s) => s.path)!
   const [open, setOpen] = useState(false)
+  const [full, setFull] = useState<ApiLogEntry | null>(null)
+  const [loadingFull, setLoadingFull] = useState(false)
+
+  // Fetch the full request/response bodies the first time the row is expanded
+  // (the list only carries previews to stay light).
+  const toggle = (): void => {
+    const next = !open
+    setOpen(next)
+    if (next && !full && !loadingFull) {
+      setLoadingFull(true)
+      window.api.logs
+        .get(workspace, entry.id)
+        .then((e) => {
+          if (e) setFull(e)
+        })
+        .catch(() => {})
+        .finally(() => setLoadingFull(false))
+    }
+  }
+
+  const reqBody = full?.request_body ?? entry.request_body_preview
+  const resBody = full?.response_body ?? entry.response_body_preview
+
   return (
     <li className="border-b border-ink-200">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         className="w-full text-left px-4 py-2 hover:bg-ink-50 flex items-center gap-3"
       >
         <span className="text-xs text-ink-700 font-mono tabular-nums whitespace-nowrap w-44">
@@ -57,23 +92,25 @@ function LogRow({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
             <div className="text-ink-700 mb-1">URL</div>
             <div className="break-all text-ink-900">{entry.url || '—'}</div>
           </div>
-          {entry.request_body_preview && (
+          {reqBody && (
             <div>
               <div className="text-ink-700 mb-1">
                 Request ({entry.request_body_size.toLocaleString()} chars)
+                {loadingFull && !full && <span className="ml-2 italic">loading full…</span>}
               </div>
-              <pre className="whitespace-pre-wrap break-words text-ink-900 bg-white border border-ink-200 rounded p-2 max-h-72 overflow-auto">
-                {entry.request_body_preview}
+              <pre className="whitespace-pre-wrap break-words text-ink-900 bg-white border border-ink-200 rounded p-2 max-h-96 overflow-auto">
+                {pretty(reqBody)}
               </pre>
             </div>
           )}
-          {entry.response_body_preview && (
+          {resBody && (
             <div>
               <div className="text-ink-700 mb-1">
                 Response ({entry.response_body_size.toLocaleString()} chars)
+                {loadingFull && !full && <span className="ml-2 italic">loading full…</span>}
               </div>
-              <pre className="whitespace-pre-wrap break-words text-ink-900 bg-white border border-ink-200 rounded p-2 max-h-72 overflow-auto">
-                {entry.response_body_preview}
+              <pre className="whitespace-pre-wrap break-words text-ink-900 bg-white border border-ink-200 rounded p-2 max-h-96 overflow-auto">
+                {pretty(resBody)}
               </pre>
             </div>
           )}
@@ -133,6 +170,7 @@ export function LogsView(): React.JSX.Element {
           <option value="openai">openai</option>
           <option value="openrouter">openrouter</option>
           <option value="deepseek">deepseek</option>
+          <option value="comfyui">comfyui</option>
         </select>
         <select
           value={kindFilter}
@@ -144,6 +182,8 @@ export function LogsView(): React.JSX.Element {
           <option value="list-models">list-models</option>
           <option value="continue">continue</option>
           <option value="continue-stream">continue-stream</option>
+          <option value="image-tags">image-tags</option>
+          <option value="image-generate">image-generate</option>
         </select>
         <label className="flex items-center gap-1 text-sm text-ink-900">
           <input

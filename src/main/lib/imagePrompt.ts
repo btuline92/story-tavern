@@ -27,22 +27,33 @@ export function buildTagEntries(opts: {
   passageText: string
 }): PromptEntry[] {
   const { image, character, passageText } = opts
-  const parts: string[] = [`Task: ${image.tagInstruction}`]
-  if (character?.name) parts.push(`Character Name: ${character.name}`)
-  if (character?.description) parts.push(`Character Description: ${character.description}`)
-  if (character?.personality) parts.push(`Character Personality: ${character.personality}`)
-  if (character?.scenario) parts.push(`Current Scenario: ${character.scenario}`)
+  const parts: string[] = []
+
+  // Character reference comes FIRST — before the task and the story passage — so the model
+  // knows what the character looks like before it reads the scene. Appearance/description
+  // are the source of truth for physical traits; the passage only supplies pose/action.
+  const charLines: string[] = []
+  if (character?.name) charLines.push(`Name: ${character.name}`)
   const appearance = readCharacterImageTags(character).appearance_tags
-  if (appearance) {
-    parts.push(`Character Appearance (reproduce these tags exactly for consistency): ${appearance}`)
+  if (appearance) charLines.push(`Appearance tags (reproduce these exactly): ${appearance}`)
+  if (character?.description) charLines.push(`Description: ${character.description}`)
+  if (character?.personality) charLines.push(`Personality: ${character.personality}`)
+  if (character?.scenario) charLines.push(`Scenario: ${character.scenario}`)
+  if (charLines.length > 0) {
+    parts.push(
+      'CHARACTER REFERENCE — derive the character’s body, skin, hair, and eyes from these ' +
+        'details (do NOT invent appearance):\n' +
+        charLines.join('\n')
+    )
   }
-  parts.push(`\nMost recent passage:\n${passageText.trim()}`)
-  parts.push(
-    '\nRespond with ONLY the comma-separated tags. Your entire reply must be the tag list.'
-  )
+
+  parts.push(`TASK: ${image.tagInstruction}`)
+  parts.push(`CURRENT SCENE (the most recent passage of the story):\n${passageText.trim()}`)
+  parts.push('Respond with ONLY the comma-separated list. Your entire reply must be the list.')
+
   return [
     { role: 'system', content: image.tagSystemPrompt },
-    { role: 'user', content: parts.join('\n') }
+    { role: 'user', content: parts.join('\n\n') }
   ]
 }
 

@@ -85,7 +85,15 @@ export function registerGenerationIpc(): void {
             url: metrics.url,
             request_body: metrics.requestBody,
             status: metrics.status,
-            response_body: metrics.fullText,
+            response_body: JSON.stringify(
+              {
+                text: metrics.fullText,
+                reasoning: metrics.reasoningText,
+                chunk_count: metrics.chunkCount
+              },
+              null,
+              2
+            ),
             error: metrics.error,
             duration_ms: metrics.durationMs,
             story_id: storyId,

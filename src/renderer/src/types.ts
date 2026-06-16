@@ -192,4 +192,6 @@ export interface ApiLogEntry {
   story_id?: string
   chapter_number?: number
   stream_chunks?: number
+  request_body?: string
+  response_body?: string
 }

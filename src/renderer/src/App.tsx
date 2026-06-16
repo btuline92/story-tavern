@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useWorkspace } from './stores/workspace'
 import { useStories } from './stores/stories'
+import { useSettings } from './stores/settings'
 import { WorkspacePicker } from './components/WorkspacePicker'
 import { CharacterList } from './components/CharacterList'
 import { CharacterDetail } from './components/CharacterDetail'
@@ -26,6 +27,13 @@ function App(): React.JSX.Element {
   useEffect(() => {
     init()
   }, [init])
+
+  // Load workspace settings as soon as a workspace is ready, so features that depend on
+  // them (e.g. image generation gating in the stories store) work on a cold start without
+  // first visiting the Settings tab.
+  useEffect(() => {
+    if (workspace) void useSettings.getState().load(workspace)
+  }, [workspace])
 
   // Wire generation stream events to the stories store.
   // Each handler catches its own errors so a thrown action can never leave the store

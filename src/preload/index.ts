@@ -166,6 +166,8 @@ export interface ApiLogEntry {
   story_id?: string
   chapter_number?: number
   stream_chunks?: number
+  request_body?: string
+  response_body?: string
 }
 
 function subscribe<TArgs extends unknown[]>(
@@ -339,6 +341,8 @@ const api = {
   logs: {
     listRecent: (workspace: string, limit?: number): Promise<ApiLogEntry[]> =>
       ipcRenderer.invoke('logs:list-recent', workspace, limit),
+    get: (workspace: string, id: string): Promise<ApiLogEntry | null> =>
+      ipcRenderer.invoke('logs:get', workspace, id),
     reveal: (workspace: string): Promise<boolean> => ipcRenderer.invoke('logs:reveal', workspace),
     onAppended: (handler: (entry: ApiLogEntry) => void): (() => void) =>
       subscribe<[ApiLogEntry]>('logs:entry-appended', handler)
