@@ -75,11 +75,19 @@ function App(): React.JSX.Element {
         })
       }
     })
+    const offImageProgress = window.api.image.onProgress((genId, phase) => {
+      try {
+        useStories.getState()._onImageProgress(genId, phase)
+      } catch (e) {
+        console.error('Image progress handler failed:', e)
+      }
+    })
     return () => {
       offDelta()
       offReasoning()
       offDone()
       offError()
+      offImageProgress()
     }
   }, [workspace])
 

@@ -10,6 +10,8 @@ import { registerPresetsIpc } from './ipc/presets'
 import { registerStoriesIpc } from './ipc/stories'
 import { registerGenerationIpc } from './ipc/generation'
 import { registerLogsIpc } from './ipc/logs'
+import { registerComfyIpc } from './ipc/comfy'
+import { registerImageIpc } from './ipc/image'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -55,6 +57,8 @@ app.whenReady().then(() => {
   registerStoriesIpc()
   registerGenerationIpc()
   registerLogsIpc()
+  registerComfyIpc()
+  registerImageIpc()
 
   createWindow()
 

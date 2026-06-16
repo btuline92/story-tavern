@@ -25,11 +25,55 @@ export interface GenerationSettings {
   reasoning_level: ReasoningLevel
 }
 
+export interface CustomPlaceholder {
+  find: string
+  replace: string
+}
+
+export interface TagModelOverride {
+  enabled: boolean
+  provider: ProviderId
+  model: string
+}
+
+export interface ImageSettings {
+  /** Master switch — when off, no image UI/actions are active. */
+  enabled: boolean
+  /** Generate an image automatically after each Continue completes. */
+  autoAfterContinue: boolean
+  comfyUrl: string
+  /** Selected workflow filename under workspace/comfy-workflows/. */
+  workflow: string
+  // ComfyUI placeholder values
+  model: string
+  vae: string
+  sampler: string
+  scheduler: string
+  steps: number
+  cfg: number
+  width: number
+  height: number
+  clipSkip: number
+  /** -1 = random each generation. */
+  seed: number
+  denoise: number
+  customPlaceholders: CustomPlaceholder[]
+  // Prompt construction
+  promptPrefix: string
+  negativePrompt: string
+  // LLM tag generation
+  tagSystemPrompt: string
+  tagInstruction: string
+  tagTemperature: number
+  tagModelOverride: TagModelOverride
+}
+
 export interface WorkspaceSettings {
   selectedProvider: ProviderId
   models: Record<ProviderId, string>
   activePresetId: string | null
   generation: GenerationSettings
+  image: ImageSettings
 }
 
 const DEFAULT_GENERATION: GenerationSettings = {
@@ -43,6 +87,66 @@ const DEFAULT_GENERATION: GenerationSettings = {
   frequency_penalty: 0,
   presence_penalty: 0,
   reasoning_level: 'off'
+}
+
+const DEFAULT_TAG_SYSTEM_PROMPT = `You are a Stable Diffusion prompt generator. Your response must contain ONLY comma-separated Danbooru-style tags. Do not respond with anything other than the tag list. NO sentences, NO commentary, NO explanations, NO preamble. Your entire reply is the tag list and nothing else.
+
+CRITICAL: Every single tag MUST be separated by a comma. Tags MUST be kept short at 2-3 tokens maximum length. Do NOT use spaces alone, newlines, or any other separator between tags. The output is a single line of comma-separated tags. Example format: tag1, tag2, tag3, tag4,
+
+Structure rules:
+1. Begin with tags describing the scene/background: location, time of day, lighting, atmosphere.
+2. Include a gender count tag in Danbooru format for the characters visible in the scene: e.g. "1girl," or "1boy, 1girl,".
+3. After the scene tags, describe the focal character: appearance (reproduce any provided appearance tag list exactly, for visual consistency), then pose, clothing state, expression, and current action.
+4. Focus on what is literally visible: pose, clothing, physical interaction, and immediate background elements.
+5. Max 40 tags total.
+6. End the output with a trailing comma.
+
+You MUST output the tags directly as your response. Do not summarize. Just write the comma-separated tags.`
+
+const DEFAULT_TAG_INSTRUCTION = `Convert the current moment of the story (the most recent passage below) into a Stable Diffusion prompt. Begin with scene/background tags, then describe the focal character and their current pose, clothing, expression, and action. If an appearance tag list is provided for the character, reproduce it exactly for consistency. Keep it concise. End with a trailing comma.`
+
+const DEFAULT_NEGATIVE_PROMPT =
+  'lowres, bad anatomy, bad hands, text, error, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+
+const DEFAULT_IMAGE: ImageSettings = {
+  enabled: false,
+  autoAfterContinue: true,
+  comfyUrl: 'http://127.0.0.1:8188',
+  workflow: 'Default.json',
+  model: '',
+  vae: '',
+  sampler: 'euler',
+  scheduler: 'normal',
+  steps: 25,
+  cfg: 5,
+  width: 1024,
+  height: 1024,
+  clipSkip: 1,
+  seed: -1,
+  denoise: 1,
+  customPlaceholders: [],
+  promptPrefix: 'best quality, absurdres, aesthetic,',
+  negativePrompt: DEFAULT_NEGATIVE_PROMPT,
+  tagSystemPrompt: DEFAULT_TAG_SYSTEM_PROMPT,
+  tagInstruction: DEFAULT_TAG_INSTRUCTION,
+  tagTemperature: 0.3,
+  tagModelOverride: { enabled: false, provider: 'anthropic', model: '' }
+}
+
+function mergeImage(raw: unknown): ImageSettings {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<ImageSettings>
+  const rawOverride = (r.tagModelOverride ?? {}) as Partial<TagModelOverride>
+  return {
+    ...DEFAULT_IMAGE,
+    ...r,
+    customPlaceholders: Array.isArray(r.customPlaceholders)
+      ? r.customPlaceholders.filter(
+          (p): p is CustomPlaceholder =>
+            !!p && typeof p.find === 'string' && typeof p.replace === 'string'
+        )
+      : [],
+    tagModelOverride: { ...DEFAULT_IMAGE.tagModelOverride, ...rawOverride }
+  }
 }
 
 function migrateReasoning(raw: unknown): ReasoningLevel {
@@ -70,7 +174,8 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
     deepseek: defaultModelFor('deepseek')
   },
   activePresetId: null,
-  generation: { ...DEFAULT_GENERATION }
+  generation: { ...DEFAULT_GENERATION },
+  image: { ...DEFAULT_IMAGE }
 }
 
 function mergeSettings(raw: unknown): WorkspaceSettings {
@@ -88,7 +193,8 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
     models: { ...DEFAULT_SETTINGS.models, ...(r.models ?? {}) },
     // Back-compat: older settings used activePromptId.
     activePresetId: r.activePresetId ?? r.activePromptId ?? null,
-    generation
+    generation,
+    image: mergeImage(r.image)
   }
 }
 

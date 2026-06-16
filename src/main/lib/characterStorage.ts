@@ -98,17 +98,9 @@ export async function ensureCharactersDirs(workspace: string): Promise<void> {
   await mkdir(join(workspace, 'characters', 'avatars'), { recursive: true })
 }
 
-async function writeCharacterFile(
-  workspace: string,
-  fm: Frontmatter,
-  body: string
-): Promise<void> {
+async function writeCharacterFile(workspace: string, fm: Frontmatter, body: string): Promise<void> {
   await ensureCharactersDirs(workspace)
-  await writeFile(
-    join(workspace, 'characters', `${fm.slug}.md`),
-    buildMarkdown(fm, body),
-    'utf-8'
-  )
+  await writeFile(join(workspace, 'characters', `${fm.slug}.md`), buildMarkdown(fm, body), 'utf-8')
 }
 
 async function writeCharacter(
@@ -229,6 +221,12 @@ export async function updateCharacter(
   const nextTavernData: TavernV2Data = {
     ...current.tavern_data,
     ...(patch.tavern_data ?? {}),
+    // Merge extensions rather than replacing, so updating one namespaced block
+    // (e.g. Story Tavern's image tags) doesn't drop others.
+    extensions: {
+      ...(current.tavern_data.extensions ?? {}),
+      ...(patch.tavern_data?.extensions ?? {})
+    },
     name: nextName,
     description: nextDescription
   }
@@ -240,10 +238,7 @@ export async function updateCharacter(
     if (wantedSlug !== current.slug) {
       nextSlug = await uniqueSlug(charactersDir, wantedSlug, current.slug)
       // Rename markdown file
-      await rename(
-        join(charactersDir, `${current.slug}.md`),
-        join(charactersDir, `${nextSlug}.md`)
-      )
+      await rename(join(charactersDir, `${current.slug}.md`), join(charactersDir, `${nextSlug}.md`))
       // Rename avatar if it followed the slug naming convention
       if (current.avatar && current.avatar === `avatars/${current.slug}.png`) {
         const newAvatarName = `${nextSlug}.png`

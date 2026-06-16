@@ -17,9 +17,22 @@ interface DraftFields {
   system_prompt: string
   post_history_instructions: string
   alternate_greetings: string[]
+  appearance_tags: string
+  image_negative_tags: string
+}
+
+interface StoryTavernImageExt {
+  appearance_tags?: string
+  negative_tags?: string
+}
+
+function imageExt(c: Character): StoryTavernImageExt {
+  const block = (c.tavern_data.extensions as Record<string, unknown> | undefined)?.story_tavern
+  return (block ?? {}) as StoryTavernImageExt
 }
 
 function draftFrom(c: Character): DraftFields {
+  const img = imageExt(c)
   return {
     name: c.name,
     creator: c.tavern_data.creator,
@@ -33,7 +46,9 @@ function draftFrom(c: Character): DraftFields {
     creator_notes: c.tavern_data.creator_notes,
     system_prompt: c.tavern_data.system_prompt,
     post_history_instructions: c.tavern_data.post_history_instructions,
-    alternate_greetings: [...c.tavern_data.alternate_greetings]
+    alternate_greetings: [...c.tavern_data.alternate_greetings],
+    appearance_tags: img.appearance_tags ?? '',
+    image_negative_tags: img.negative_tags ?? ''
   }
 }
 
@@ -280,7 +295,13 @@ export function CharacterDetail(): React.JSX.Element {
           alternate_greetings: draft.alternate_greetings,
           tags: draft.tags,
           creator: draft.creator,
-          character_version: draft.character_version
+          character_version: draft.character_version,
+          extensions: {
+            story_tavern: {
+              appearance_tags: draft.appearance_tags,
+              negative_tags: draft.image_negative_tags
+            }
+          }
         }
       })
     } finally {
@@ -423,6 +444,29 @@ export function CharacterDetail(): React.JSX.Element {
           rows={4}
           onChange={(v) => set('scenario', v)}
         />
+
+        <div className="mb-6 rounded-lg border border-ink-200 bg-ink-50 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-ink-700 mb-2">
+            Image generation
+          </div>
+          <TextArea
+            label="Appearance tags (Danbooru, reproduced for visual consistency)"
+            value={draft.appearance_tags}
+            rows={3}
+            placeholder="e.g. blonde hair, blue eyes, elf ears, long hair, freckles,"
+            onChange={(v) => set('appearance_tags', v)}
+          />
+          <div className="-mb-2">
+            <TextArea
+              label="Per-character negative tags (optional)"
+              value={draft.image_negative_tags}
+              rows={2}
+              placeholder="e.g. glasses, hat,"
+              onChange={(v) => set('image_negative_tags', v)}
+            />
+          </div>
+        </div>
+
         <TextArea
           label="First message"
           value={draft.first_mes}

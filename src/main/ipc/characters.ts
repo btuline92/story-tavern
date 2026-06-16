@@ -68,11 +68,8 @@ export function registerCharactersIpc(): void {
     return true
   })
 
-  ipcMain.handle(
-    'characters:read-avatar',
-    async (_e, workspace: string, avatarRelPath: string) => {
-      const buf = await readFile(join(workspace, 'characters', avatarRelPath))
-      return `data:image/png;base64,${buf.toString('base64')}`
-    }
-  )
+  ipcMain.handle('characters:read-avatar', async (_e, workspace: string, avatarRelPath: string) => {
+    const buf = await readFile(join(workspace, 'characters', avatarRelPath))
+    return `data:image/png;base64,${buf.toString('base64')}`
+  })
 }

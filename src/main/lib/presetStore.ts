@@ -92,7 +92,10 @@ interface StPrompt {
 
 interface StPreset {
   prompts?: StPrompt[]
-  prompt_order?: Array<{ character_id?: number; order?: Array<{ identifier: string; enabled?: boolean }> }>
+  prompt_order?: Array<{
+    character_id?: number
+    order?: Array<{ identifier: string; enabled?: boolean }>
+  }>
 }
 
 export function importFromSillyTavern(json: unknown, fallbackName: string): Preset {
@@ -186,7 +189,13 @@ export function defaultPreset(): Preset {
         content:
           'You are a skilled longform fiction writer. Continue the manuscript in the same voice, tone, tense, and point of view. Write flowing prose. Do not summarize, do not add meta-commentary, and do not insert chapter headings unless the prose itself calls for one.'
       }),
-      mk({ name: 'Story premise', role: 'system', marker: true, markerType: 'story_premise', content: '' }),
+      mk({
+        name: 'Story premise',
+        role: 'system',
+        marker: true,
+        markerType: 'story_premise',
+        content: ''
+      }),
       mk({
         name: 'Character description',
         role: 'system',
@@ -214,7 +223,13 @@ async function migrateLegacyPrompts(workspace: string): Promise<Preset[]> {
   if (!existsSync(legacy)) return []
   try {
     const raw = JSON.parse(await readFile(legacy, 'utf-8')) as {
-      prompts?: Array<{ id: string; name: string; content: string; created_at?: string; updated_at?: string }>
+      prompts?: Array<{
+        id: string
+        name: string
+        content: string
+        created_at?: string
+        updated_at?: string
+      }>
     }
     return (raw.prompts ?? []).map((p) => ({
       id: p.id, // reuse id so existing story.prompt_id references still resolve

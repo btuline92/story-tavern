@@ -22,10 +22,7 @@ interface SectionProps {
 
 function Section({ title, defaultOpen = true, children }: SectionProps): React.JSX.Element {
   return (
-    <details
-      open={defaultOpen}
-      className="border-b border-ink-200 group"
-    >
+    <details open={defaultOpen} className="border-b border-ink-200 group">
       <summary className="flex items-center justify-between cursor-pointer select-none px-4 py-3 hover:bg-ink-50">
         <span className="text-sm font-semibold text-ink-900">{title}</span>
         <span className="text-ink-700 text-xs transition-transform group-open:rotate-90">▶</span>

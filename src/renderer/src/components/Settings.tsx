@@ -4,6 +4,7 @@ import { useWorkspace } from '../stores/workspace'
 import type { ProviderId } from '../types'
 import { ModelSelect } from './ModelSelect'
 import { GenerationSettingsPanel } from './GenerationSettings'
+import { ImageSettingsPanel } from './ImageSettings'
 
 const PROVIDERS: { id: ProviderId; name: string }[] = [
   { id: 'anthropic', name: 'Anthropic' },
@@ -168,6 +169,8 @@ export function Settings(): React.JSX.Element {
       ))}
 
       <GenerationSettingsPanel />
+
+      <ImageSettingsPanel />
     </div>
   )
 }

@@ -254,9 +254,9 @@ export function GenerationSettingsPanel(): React.JSX.Element {
             translates it to the underlying model's mechanism.
           </div>
           <div>
-            <strong>DeepSeek:</strong> reasoning is selected by model id (e.g. <code>deepseek-reasoner</code>),
-            not via a request parameter. This setting still controls whether streamed thinking
-            tokens are displayed during generation.
+            <strong>DeepSeek:</strong> reasoning is selected by model id (e.g.{' '}
+            <code>deepseek-reasoner</code>), not via a request parameter. This setting still
+            controls whether streamed thinking tokens are displayed during generation.
           </div>
         </div>
       </div>

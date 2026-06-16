@@ -1,5 +1,18 @@
 import { create } from 'zustand'
-import type { Chapter, StoryMeta, StoryWithChapters } from '../types'
+import type { Chapter, ImageGenResult, ImagePhase, StoryMeta, StoryWithChapters } from '../types'
+import { useSettings } from './settings'
+
+function newGenId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+/** Build a Markdown image marker, sanitizing the prompt for the title attribute. */
+function imageMarker(relPath: string, positive: string): string {
+  const title = positive.replace(/\s+/g, ' ').replace(/"/g, "'").trim()
+  return `![scene](${relPath} "${title}")`
+}
 
 interface StoriesState {
   stories: StoryMeta[]
@@ -24,6 +37,11 @@ interface StoriesState {
   pendingGenBefore: string | null
   /** The last completed generation: lets Regenerate restore and retry. */
   lastGen: { chapterNumber: number; before: string; after: string } | null
+  /** Inline image generation (after Continue, or manual). Independent of text streaming. */
+  imageGenerating: boolean
+  imageStatus: ImagePhase | null
+  imageError: string | null
+  imageGenId: string | null
   loadList: (workspace: string) => Promise<void>
   open: (workspace: string, id: string) => Promise<void>
   closeActive: () => void
@@ -34,7 +52,13 @@ interface StoriesState {
   updateMeta: (
     workspace: string,
     id: string,
-    patch: { title?: string; characterId?: string | null; presetId?: string | null; premise?: string; notes?: string }
+    patch: {
+      title?: string
+      characterId?: string | null
+      presetId?: string | null
+      premise?: string
+      notes?: string
+    }
   ) => Promise<void>
   remove: (workspace: string, id: string) => Promise<void>
   updateChapter: (
@@ -47,11 +71,21 @@ interface StoriesState {
   startContinue: (workspace: string, userNote?: string) => Promise<void>
   regenerate: (workspace: string, userNote?: string) => Promise<void>
   cancelContinue: () => Promise<void>
+  /** Generate an inline image for a passage and append its marker to the chapter. */
+  generateImage: (workspace: string, chapterNumber: number, passageText: string) => Promise<void>
+  /** Generate an image and return the result without inserting it (for in-place replace). */
+  regenerateImage: (
+    workspace: string,
+    chapterNumber: number,
+    passageText: string
+  ) => Promise<ImageGenResult | null>
+  cancelImage: () => Promise<void>
   /** Internal: called by IPC subscribers wired in App. */
   _onStreamDelta: (streamId: string, delta: string) => void
   _onStreamReasoning: (streamId: string, delta: string) => void
   _onStreamDone: (workspace: string, streamId: string, fullText: string) => Promise<void>
   _onStreamError: (streamId: string, error: string) => void
+  _onImageProgress: (genId: string, phase: ImagePhase) => void
 }
 
 export const useStories = create<StoriesState>((set, get) => ({
@@ -69,6 +103,10 @@ export const useStories = create<StoriesState>((set, get) => ({
   externalChapterRevision: 0,
   pendingGenBefore: null,
   lastGen: null,
+  imageGenerating: false,
+  imageStatus: null,
+  imageError: null,
+  imageGenId: null,
   loadList: async (workspace) => {
     set({ loading: true })
     const list = await window.api.stories.list(workspace)
@@ -226,6 +264,69 @@ export const useStories = create<StoriesState>((set, get) => ({
     }
   },
 
+  regenerateImage: async (workspace, chapterNumber, passageText) => {
+    const current = get().active
+    if (!current) return null
+    if (get().imageGenerating) return null
+    const text = passageText.trim()
+    if (!text) return null
+    const storyId = current.meta.id
+    const genId = newGenId()
+    set({ imageGenerating: true, imageStatus: 'tagging', imageError: null, imageGenId: genId })
+    try {
+      const result = await window.api.image.generate(genId, workspace, storyId, chapterNumber, text)
+      if ('error' in result) {
+        if (result.error !== 'aborted') set({ imageError: result.error })
+        return null
+      }
+      return result
+    } catch (e) {
+      set({ imageError: e instanceof Error ? e.message : String(e) })
+      return null
+    } finally {
+      set({ imageGenerating: false, imageStatus: null, imageGenId: null })
+    }
+  },
+  generateImage: async (workspace, chapterNumber, passageText) => {
+    const result = await get().regenerateImage(workspace, chapterNumber, passageText)
+    if (!result) return
+    // Append the image marker at the end of the chapter the passage belongs to.
+    const cur = get().active
+    const ch = cur?.chapters.find((c) => c.number === chapterNumber)
+    if (!cur || !ch) return
+    try {
+      const marker = imageMarker(result.relPath, result.positive)
+      const base = ch.content.replace(/\s+$/, '')
+      const newContent = `${base}\n\n${marker}\n`
+      const updated = await window.api.stories.updateChapter(
+        workspace,
+        cur.meta.id,
+        chapterNumber,
+        {
+          content: newContent
+        }
+      )
+      const chapters = cur.chapters.map((c) => (c.number === chapterNumber ? updated : c))
+      set({
+        active: { ...cur, chapters },
+        externalChapterRevision: get().externalChapterRevision + 1
+      })
+    } catch (e) {
+      set({ imageError: e instanceof Error ? e.message : String(e) })
+    }
+  },
+  cancelImage: async () => {
+    const id = get().imageGenId
+    set({ imageGenerating: false, imageStatus: null, imageGenId: null })
+    if (id) {
+      try {
+        await window.api.image.cancel(id)
+      } catch {
+        /* local state already reset */
+      }
+    }
+  },
+
   _onStreamDelta: (streamId, delta) => {
     if (streamId !== get().generationStreamId) return
     set({ streamBuffer: get().streamBuffer + delta })
@@ -286,6 +387,11 @@ export const useStories = create<StoriesState>((set, get) => ({
           pendingGenBefore: null,
           lastGen: { chapterNumber, before, after: newContent }
         })
+        // Auto-generate an inline image for the passage just written, if enabled.
+        const image = useSettings.getState().settings?.image
+        if (image?.enabled && image.autoAfterContinue) {
+          void get().generateImage(workspace, chapterNumber, text)
+        }
       } catch (e) {
         set({
           generating: false,
@@ -321,5 +427,9 @@ export const useStories = create<StoriesState>((set, get) => ({
       streamBuffer: '',
       reasoningBuffer: ''
     })
+  },
+  _onImageProgress: (genId, phase) => {
+    if (genId !== get().imageGenId) return
+    set({ imageStatus: phase })
   }
 }))

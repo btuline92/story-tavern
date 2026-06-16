@@ -17,9 +17,8 @@ import {
 export function registerStoriesIpc(): void {
   ipcMain.handle('stories:list', (_e, workspace: string) => listStories(workspace))
   ipcMain.handle('stories:load', (_e, workspace: string, id: string) => loadStory(workspace, id))
-  ipcMain.handle(
-    'stories:create',
-    (_e, workspace: string, input: CreateStoryInput) => createStory(workspace, input)
+  ipcMain.handle('stories:create', (_e, workspace: string, input: CreateStoryInput) =>
+    createStory(workspace, input)
   )
   ipcMain.handle(
     'stories:update-meta',
@@ -41,10 +40,8 @@ export function registerStoriesIpc(): void {
     (_e, workspace: string, storyId: string, chapterNumber: number, text: string) =>
       appendToChapter(workspace, storyId, chapterNumber, text)
   )
-  ipcMain.handle(
-    'stories:add-chapter',
-    (_e, workspace: string, storyId: string, title?: string) =>
-      addChapter(workspace, storyId, title)
+  ipcMain.handle('stories:add-chapter', (_e, workspace: string, storyId: string, title?: string) =>
+    addChapter(workspace, storyId, title)
   )
   ipcMain.handle(
     'stories:delete-chapter',

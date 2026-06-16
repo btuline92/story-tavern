@@ -79,7 +79,9 @@ function expandMarker(markerType: MarkerType, ctx: AssemblyContext): PromptEntry
         : null
     case 'manuscript': {
       const ms = manuscriptText(ctx)
-      return ms ? { role: 'user', content: `--- MANUSCRIPT ---\n${ms}\n--- END MANUSCRIPT ---` } : null
+      return ms
+        ? { role: 'user', content: `--- MANUSCRIPT ---\n${ms}\n--- END MANUSCRIPT ---` }
+        : null
     }
     case 'unsupported':
     default:
@@ -114,7 +116,8 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
   // If the preset has no manuscript marker, the model still needs the prose to continue.
   if (!manuscriptSeen) {
     const ms = manuscriptText(ctx)
-    if (ms) entries.push({ role: 'user', content: `--- MANUSCRIPT ---\n${ms}\n--- END MANUSCRIPT ---` })
+    if (ms)
+      entries.push({ role: 'user', content: `--- MANUSCRIPT ---\n${ms}\n--- END MANUSCRIPT ---` })
   }
   // Append outlines for chapters the author has planned but not yet written. Tells the
   // model where the story is heading so it can foreshadow / pace appropriately.

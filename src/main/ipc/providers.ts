@@ -224,12 +224,7 @@ async function listModels(
       return listOpenRouterModels(workspace)
     case 'deepseek':
       if (!key) throw new Error('DeepSeek requires an API key to list models')
-      return listOpenAIStyleModels(
-        workspace,
-        'deepseek',
-        'https://api.deepseek.com/v1/models',
-        key
-      )
+      return listOpenAIStyleModels(workspace, 'deepseek', 'https://api.deepseek.com/v1/models', key)
     default:
       throw new Error(`Unknown provider: ${String(provider)}`)
   }
@@ -257,7 +252,13 @@ export function registerProvidersIpc(): void {
         case 'anthropic':
           return testAnthropic(ws, key, m)
         case 'openai':
-          return testOpenAICompat(ws, 'openai', 'https://api.openai.com/v1/chat/completions', key, m)
+          return testOpenAICompat(
+            ws,
+            'openai',
+            'https://api.openai.com/v1/chat/completions',
+            key,
+            m
+          )
         case 'openrouter':
           return testOpenAICompat(
             ws,

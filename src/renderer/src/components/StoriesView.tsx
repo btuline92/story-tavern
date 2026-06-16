@@ -1,9 +1,13 @@
 import { Component, ErrorInfo, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { useStories } from '../stores/stories'
+import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
 import { NewStoryDialog } from './NewStoryDialog'
 import { StoryDetailsPanel } from './StoryDetailsPanel'
+import { ChapterDocument } from './ChapterDocument'
+
+const IMAGE_MARKER_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g
 
 interface ErrorBoundaryProps {
   fallback: (error: Error, reset: () => void) => ReactNode
@@ -43,7 +47,11 @@ function ElapsedTimer({ since }: { since: number }): React.JSX.Element {
   const secs = Math.max(0, Math.floor((now - since) / 1000))
   const m = Math.floor(secs / 60)
   const s = secs % 60
-  return <span className="tabular-nums">{m}:{String(s).padStart(2, '0')}</span>
+  return (
+    <span className="tabular-nums">
+      {m}:{String(s).padStart(2, '0')}
+    </span>
+  )
 }
 
 function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
@@ -57,15 +65,22 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     reasoningBuffer,
     externalChapterRevision,
     lastGen,
+    imageGenerating,
+    imageStatus,
+    imageError,
     updateChapter,
     addChapter,
     selectChapter,
     startContinue,
     regenerate,
     cancelContinue,
+    generateImage,
+    regenerateImage,
+    cancelImage,
     remove
   } = useStories()
   const { characters } = useCharacters()
+  const imageEnabled = useSettings((s) => s.settings?.image.enabled ?? false)
   const [titleDraft, setTitleDraft] = useState('')
   const [outlineDraft, setOutlineDraft] = useState('')
   const [contentDraft, setContentDraft] = useState('')
@@ -80,7 +95,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const chapter = useMemo(
     () =>
       active && activeChapterNumber != null
-        ? active.chapters.find((c) => c.number === activeChapterNumber) ?? null
+        ? (active.chapters.find((c) => c.number === activeChapterNumber) ?? null)
         : null,
     [active, activeChapterNumber]
   )
@@ -176,6 +191,19 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     await cancelContinue()
   }
 
+  const busy = generating || imageGenerating
+
+  const proseTail = (): string => {
+    const prose = contentDraft.replace(IMAGE_MARKER_RE, '').trim()
+    return prose.slice(-1500)
+  }
+
+  const onGenerateImage = async (): Promise<void> => {
+    if (!chapter) return
+    await flushSave()
+    await generateImage(workspace, chapter.number, proseTail())
+  }
+
   const canRegenerate = !!lastGen && lastGen.chapterNumber === activeChapterNumber
   const onRegenerate = async (): Promise<void> => {
     if (!lastGen) return
@@ -250,12 +278,12 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             type="text"
             value={titleDraft}
             onChange={(e) => setTitleDraft(e.target.value)}
+            disabled={busy}
             placeholder="Chapter title"
-            className="flex-1 rounded-md border border-transparent px-2 py-1 text-lg font-semibold focus:outline-none focus:border-ink-200 focus:ring-2 focus:ring-accent-500"
+            className="flex-1 rounded-md border border-transparent px-2 py-1 text-lg font-semibold focus:outline-none focus:border-ink-200 focus:ring-2 focus:ring-accent-500 disabled:bg-ink-50"
           />
           <div className="text-xs text-ink-700 whitespace-nowrap">
-            {wordCount(contentDraft)} words{' '}
-            {saving ? '• saving…' : dirty ? '• unsaved' : '• saved'}
+            {wordCount(contentDraft)} words {saving ? '• saving…' : dirty ? '• unsaved' : '• saved'}
           </div>
           <button
             type="button"
@@ -278,7 +306,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             <textarea
               value={outlineDraft}
               onChange={(e) => setOutlineDraft(e.target.value)}
-              disabled={generating}
+              disabled={busy}
               rows={3}
               placeholder="A few sentences sketching what should happen here. Leave empty to skip."
               className="w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-100"
@@ -293,8 +321,8 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
                 <div className="text-ink-900 font-medium mb-2">This story has no chapters yet.</div>
                 <div className="text-sm text-ink-700 mb-4">
                   The story was created but the first chapter file is missing — likely a
-                  half-finished generation from a previous session. Add a chapter to start
-                  writing, or delete the story below.
+                  half-finished generation from a previous session. Add a chapter to start writing,
+                  or delete the story below.
                 </div>
                 <button
                   type="button"
@@ -307,12 +335,17 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             </div>
           ) : (
             <>
-              <textarea
+              <ChapterDocument
+                workspace={workspace}
+                storySlug={active.meta.slug}
                 value={contentDraft}
-                onChange={(e) => setContentDraft(e.target.value)}
-                disabled={generating}
-                placeholder="Start writing here, or click Continue ▶ to have the LLM begin the chapter for you."
-                className="absolute inset-0 w-full h-full resize-none p-8 text-base leading-relaxed font-serif focus:outline-none disabled:bg-ink-50"
+                disabled={busy}
+                onChange={setContentDraft}
+                onRegenerateImage={(passageText) =>
+                  chapter
+                    ? regenerateImage(workspace, chapter.number, passageText)
+                    : Promise.resolve(null)
+                }
               />
               {generating && (
                 <div
@@ -324,7 +357,10 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
                     Streaming
                   </div>
                   {reasoningBuffer && (
-                    <details className="mb-3 rounded border border-ink-200 bg-ink-50 px-3 py-2" open>
+                    <details
+                      className="mb-3 rounded border border-ink-200 bg-ink-50 px-3 py-2"
+                      open
+                    >
                       <summary className="cursor-pointer text-xs uppercase tracking-wide text-ink-700 font-sans">
                         Thinking · {reasoningBuffer.length.toLocaleString()} chars
                       </summary>
@@ -354,7 +390,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             type="text"
             value={userNote}
             onChange={(e) => setUserNote(e.target.value)}
-            disabled={generating}
+            disabled={busy}
             placeholder="Author note for this generation (optional, not saved)"
             className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-50"
           />
@@ -376,6 +412,26 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
                 Cancel
               </button>
             </>
+          ) : imageGenerating ? (
+            <>
+              <div className="flex items-center gap-2 text-xs text-accent-600 whitespace-nowrap">
+                <span className="inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse" />
+                {imageStatus === 'tagging'
+                  ? 'Tagging passage…'
+                  : imageStatus === 'generating'
+                    ? 'Generating image…'
+                    : imageStatus === 'saving'
+                      ? 'Saving image…'
+                      : 'Working…'}
+              </div>
+              <button
+                type="button"
+                onClick={() => cancelImage()}
+                className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
+              >
+                Cancel
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -391,6 +447,16 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               >
                 ⟳ Regenerate
               </button>
+              {imageEnabled && (
+                <button
+                  type="button"
+                  onClick={onGenerateImage}
+                  title="Generate an inline image for the latest passage"
+                  className="rounded-md border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 hover:bg-ink-100"
+                >
+                  🖼 Image
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onContinue}
@@ -405,6 +471,11 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
         {generationError && (
           <div className="border-t border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700 whitespace-pre-wrap">
             {generationError}
+          </div>
+        )}
+        {imageError && (
+          <div className="border-t border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-800 whitespace-pre-wrap">
+            Image generation: {imageError}
           </div>
         )}
       </main>
@@ -541,9 +612,7 @@ export function StoriesView(): React.JSX.Element {
                   title="Delete story"
                   onClick={async (e) => {
                     e.stopPropagation()
-                    if (
-                      confirm(`Delete "${s.title || s.slug}" and all its chapters?`)
-                    ) {
+                    if (confirm(`Delete "${s.title || s.slug}" and all its chapters?`)) {
                       await remove(workspace, s.id)
                     }
                   }}

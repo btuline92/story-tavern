@@ -17,11 +17,64 @@ export interface GenerationSettings {
   reasoning_level: ReasoningLevel
 }
 
+export interface CustomPlaceholder {
+  find: string
+  replace: string
+}
+
+export interface TagModelOverride {
+  enabled: boolean
+  provider: ProviderId
+  model: string
+}
+
+export interface ImageSettings {
+  enabled: boolean
+  autoAfterContinue: boolean
+  comfyUrl: string
+  workflow: string
+  model: string
+  vae: string
+  sampler: string
+  scheduler: string
+  steps: number
+  cfg: number
+  width: number
+  height: number
+  clipSkip: number
+  seed: number
+  denoise: number
+  customPlaceholders: CustomPlaceholder[]
+  promptPrefix: string
+  negativePrompt: string
+  tagSystemPrompt: string
+  tagInstruction: string
+  tagTemperature: number
+  tagModelOverride: TagModelOverride
+}
+
 export interface WorkspaceSettings {
   selectedProvider: ProviderId
   models: Record<ProviderId, string>
   activePresetId: string | null
   generation: GenerationSettings
+  image: ImageSettings
+}
+
+export interface ComfyObjectInfo {
+  samplers: string[]
+  schedulers: string[]
+  models: string[]
+  vaes: string[]
+}
+
+export type ImagePhase = 'tagging' | 'generating' | 'saving'
+
+export interface ImageGenResult {
+  relPath: string
+  positive: string
+  negative: string
+  tags: string
 }
 
 export interface ModelInfo {
@@ -87,7 +140,13 @@ export interface StoryWithChapters {
   chapters: Chapter[]
 }
 
-export type ApiLogKind = 'test' | 'list-models' | 'continue' | 'continue-stream'
+export type ApiLogKind =
+  | 'test'
+  | 'list-models'
+  | 'continue'
+  | 'continue-stream'
+  | 'image-tags'
+  | 'image-generate'
 
 export interface ApiLogEntry {
   id: string
@@ -146,8 +205,7 @@ const api = {
       ipcRenderer.invoke('characters:read-avatar', workspace, avatarRelPath)
   },
   keys: {
-    get: (provider: ProviderId): Promise<string | null> =>
-      ipcRenderer.invoke('keys:get', provider),
+    get: (provider: ProviderId): Promise<string | null> => ipcRenderer.invoke('keys:get', provider),
     set: (provider: ProviderId, key: string): Promise<boolean> =>
       ipcRenderer.invoke('keys:set', provider, key),
     delete: (provider: ProviderId): Promise<boolean> => ipcRenderer.invoke('keys:delete', provider),
@@ -184,7 +242,8 @@ const api = {
       ipcRenderer.invoke('presets:export', workspace, id)
   },
   stories: {
-    list: (workspace: string): Promise<StoryMeta[]> => ipcRenderer.invoke('stories:list', workspace),
+    list: (workspace: string): Promise<StoryMeta[]> =>
+      ipcRenderer.invoke('stories:list', workspace),
     load: (workspace: string, id: string): Promise<StoryWithChapters | null> =>
       ipcRenderer.invoke('stories:load', workspace, id),
     create: (
@@ -225,11 +284,7 @@ const api = {
       ipcRenderer.invoke('stories:append-chapter', workspace, storyId, chapterNumber, text),
     addChapter: (workspace: string, storyId: string, title?: string): Promise<Chapter> =>
       ipcRenderer.invoke('stories:add-chapter', workspace, storyId, title),
-    deleteChapter: (
-      workspace: string,
-      storyId: string,
-      chapterNumber: number
-    ): Promise<boolean> =>
+    deleteChapter: (workspace: string, storyId: string, chapterNumber: number): Promise<boolean> =>
       ipcRenderer.invoke('stories:delete-chapter', workspace, storyId, chapterNumber)
   },
   generation: {
@@ -250,6 +305,35 @@ const api = {
       subscribe<[string, string]>('generation:stream:done', handler),
     onError: (handler: (streamId: string, error: string) => void): (() => void) =>
       subscribe<[string, string]>('generation:stream:error', handler)
+  },
+  comfy: {
+    test: (url: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('comfy:test', url),
+    objectInfo: (url: string): Promise<ComfyObjectInfo | { error: string }> =>
+      ipcRenderer.invoke('comfy:object-info', url),
+    listWorkflows: (workspace: string): Promise<string[]> =>
+      ipcRenderer.invoke('comfy:workflows:list', workspace),
+    getWorkflow: (workspace: string, name: string): Promise<string> =>
+      ipcRenderer.invoke('comfy:workflows:get', workspace, name),
+    saveWorkflow: (workspace: string, name: string, json: string): Promise<string[]> =>
+      ipcRenderer.invoke('comfy:workflows:save', workspace, name, json),
+    deleteWorkflow: (workspace: string, name: string): Promise<string[]> =>
+      ipcRenderer.invoke('comfy:workflows:delete', workspace, name)
+  },
+  image: {
+    generate: (
+      genId: string,
+      workspace: string,
+      storyId: string,
+      chapterNumber: number,
+      passageText: string
+    ): Promise<ImageGenResult | { error: string }> =>
+      ipcRenderer.invoke('image:generate', genId, workspace, storyId, chapterNumber, passageText),
+    cancel: (genId: string): Promise<boolean> => ipcRenderer.invoke('image:cancel', genId),
+    readFile: (workspace: string, storySlug: string, relPath: string): Promise<string | null> =>
+      ipcRenderer.invoke('image:read-file', workspace, storySlug, relPath),
+    onProgress: (handler: (genId: string, phase: ImagePhase) => void): (() => void) =>
+      subscribe<[string, ImagePhase]>('image:progress', handler)
   },
   logs: {
     listRecent: (workspace: string, limit?: number): Promise<ApiLogEntry[]> =>

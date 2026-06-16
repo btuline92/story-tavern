@@ -140,11 +140,7 @@ async function readChapter(
   }
 }
 
-async function writeChapter(
-  workspace: string,
-  slug: string,
-  chapter: Chapter
-): Promise<void> {
+async function writeChapter(workspace: string, slug: string, chapter: Chapter): Promise<void> {
   const fm: ChapterFrontmatter = {
     id: chapter.id,
     number: chapter.number,
@@ -194,10 +190,7 @@ export interface StoryWithChapters {
   chapters: Chapter[]
 }
 
-export async function loadStory(
-  workspace: string,
-  id: string
-): Promise<StoryWithChapters | null> {
+export async function loadStory(workspace: string, id: string): Promise<StoryWithChapters | null> {
   const all = await listStories(workspace)
   const meta = all.find((s) => s.id === id)
   if (!meta) return null
@@ -273,8 +266,7 @@ export async function updateStoryMeta(
     ...current,
     slug: nextSlug,
     title: nextTitle,
-    character_id:
-      patch.characterId !== undefined ? patch.characterId : current.character_id,
+    character_id: patch.characterId !== undefined ? patch.characterId : current.character_id,
     preset_id: patch.presetId !== undefined ? patch.presetId : current.preset_id,
     premise: patch.premise !== undefined ? patch.premise : current.premise,
     notes: patch.notes !== undefined ? patch.notes : current.notes,

@@ -128,7 +128,11 @@ function pngChunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([len, body, crcBuf])
 }
 
-function makePlaceholderImage(width: number, height: number, rgb: [number, number, number]): Buffer {
+function makePlaceholderImage(
+  width: number,
+  height: number,
+  rgb: [number, number, number]
+): Buffer {
   const ihdrData = Buffer.alloc(13)
   ihdrData.writeUInt32BE(width, 0)
   ihdrData.writeUInt32BE(height, 4)

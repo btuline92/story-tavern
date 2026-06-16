@@ -1,8 +1,4 @@
 import { ipcMain } from 'electron'
-import { existsSync } from 'node:fs'
-import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
-import { load as yamlLoad } from 'js-yaml'
 import { ulid } from 'ulid'
 import { getKey } from '../lib/safeStore'
 import { readWorkspaceSettings } from './workspace'
@@ -11,39 +7,8 @@ import { getPreset, defaultPreset } from '../lib/presetStore'
 import { assemble } from '../lib/promptAssembly'
 import { streamContinue } from '../lib/streamGeneration'
 import { logApiCall } from '../lib/apiLogger'
+import { readCharacterData } from '../lib/characterData'
 import type { ProviderId } from './providers'
-import type { TavernV2Data } from '../lib/tavernCard'
-
-interface CharacterFrontmatter {
-  id: string
-  tavern_data: TavernV2Data
-}
-
-async function readCharacterData(
-  workspace: string,
-  id: string | null
-): Promise<TavernV2Data | null> {
-  if (!id) return null
-  const charactersDir = join(workspace, 'characters')
-  if (!existsSync(charactersDir)) return null
-  const entries = await readdir(charactersDir, { withFileTypes: true })
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) continue
-    try {
-      const text = await readFile(join(charactersDir, entry.name), 'utf-8')
-      const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
-      if (!match) continue
-      const fm = yamlLoad(match[1]) as CharacterFrontmatter
-      if (fm.id === id) {
-        const body = match[2].replace(/^\r?\n/, '').replace(/\r?\n$/, '')
-        return { ...fm.tavern_data, description: body || fm.tavern_data.description }
-      }
-    } catch {
-      /* skip */
-    }
-  }
-  return null
-}
 
 const activeStreams = new Map<string, AbortController>()
 

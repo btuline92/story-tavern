@@ -79,11 +79,64 @@ export interface GenerationSettings {
   reasoning_level: ReasoningLevel
 }
 
+export interface CustomPlaceholder {
+  find: string
+  replace: string
+}
+
+export interface TagModelOverride {
+  enabled: boolean
+  provider: ProviderId
+  model: string
+}
+
+export interface ImageSettings {
+  enabled: boolean
+  autoAfterContinue: boolean
+  comfyUrl: string
+  workflow: string
+  model: string
+  vae: string
+  sampler: string
+  scheduler: string
+  steps: number
+  cfg: number
+  width: number
+  height: number
+  clipSkip: number
+  seed: number
+  denoise: number
+  customPlaceholders: CustomPlaceholder[]
+  promptPrefix: string
+  negativePrompt: string
+  tagSystemPrompt: string
+  tagInstruction: string
+  tagTemperature: number
+  tagModelOverride: TagModelOverride
+}
+
 export interface WorkspaceSettings {
   selectedProvider: ProviderId
   models: Record<ProviderId, string>
   activePresetId: string | null
   generation: GenerationSettings
+  image: ImageSettings
+}
+
+export interface ComfyObjectInfo {
+  samplers: string[]
+  schedulers: string[]
+  models: string[]
+  vaes: string[]
+}
+
+export type ImagePhase = 'tagging' | 'generating' | 'saving'
+
+export interface ImageGenResult {
+  relPath: string
+  positive: string
+  negative: string
+  tags: string
 }
 
 export interface StoryMeta {
@@ -113,7 +166,13 @@ export interface StoryWithChapters {
   chapters: Chapter[]
 }
 
-export type ApiLogKind = 'test' | 'list-models' | 'continue' | 'continue-stream'
+export type ApiLogKind =
+  | 'test'
+  | 'list-models'
+  | 'continue'
+  | 'continue-stream'
+  | 'image-tags'
+  | 'image-generate'
 
 export interface ApiLogEntry {
   id: string

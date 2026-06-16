@@ -5,7 +5,13 @@ import { join } from 'node:path'
 
 const PREVIEW_LIMIT = 4000
 
-export type ApiLogKind = 'test' | 'list-models' | 'continue' | 'continue-stream'
+export type ApiLogKind =
+  | 'test'
+  | 'list-models'
+  | 'continue'
+  | 'continue-stream'
+  | 'image-tags'
+  | 'image-generate'
 
 export interface ApiLogEntry {
   id: string
@@ -72,9 +78,7 @@ export async function logApiCall(workspace: string, input: ApiLogInput): Promise
   const req = preview(input.request_body)
   const res = preview(input.response_body)
   const entry: ApiLogEntry = {
-    id:
-      Date.now().toString(36) +
-      Math.random().toString(36).slice(2, 8),
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
     ts: new Date().toISOString(),
     provider: input.provider,
     model: input.model,
@@ -101,10 +105,7 @@ export async function logApiCall(workspace: string, input: ApiLogInput): Promise
   return entry
 }
 
-export async function listRecentLogs(
-  workspace: string,
-  limit = 200
-): Promise<ApiLogEntry[]> {
+export async function listRecentLogs(workspace: string, limit = 200): Promise<ApiLogEntry[]> {
   const dir = logsDir(workspace)
   if (!existsSync(dir)) return []
   const files = (await readdir(dir))

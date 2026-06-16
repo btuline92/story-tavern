@@ -137,7 +137,13 @@ function BlockRow({
   )
 }
 
-function PresetEditor({ workspace, preset }: { workspace: string; preset: Preset }): React.JSX.Element {
+function PresetEditor({
+  workspace,
+  preset
+}: {
+  workspace: string
+  preset: Preset
+}): React.JSX.Element {
   const { save, delete: deletePreset, exportPreset } = usePresets()
   const { settings, setActivePresetId } = useSettings()
   const [draft, setDraft] = useState<Preset>(preset)
@@ -284,9 +290,9 @@ function PresetEditor({ workspace, preset }: { workspace: string; preset: Preset
           </button>
         </div>
         <div className="px-4 pb-6 text-xs text-ink-700">
-          Each enabled block is sent as a separate entry in the API request, using its role.
-          System blocks become the system prompt; user/assistant blocks become messages. Dynamic
-          (marker) blocks are filled from the story at generation time.
+          Each enabled block is sent as a separate entry in the API request, using its role. System
+          blocks become the system prompt; user/assistant blocks become messages. Dynamic (marker)
+          blocks are filled from the story at generation time.
         </div>
       </div>
     </div>

@@ -48,7 +48,11 @@ export function ModelSelect({ provider, value, hasKey, onChange }: Props): React
     setLoading(true)
     setError(null)
     try {
-      const list = await window.api.providers.listModels(provider, undefined, workspace ?? undefined)
+      const list = await window.api.providers.listModels(
+        provider,
+        undefined,
+        workspace ?? undefined
+      )
       setModels(list)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
