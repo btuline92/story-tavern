@@ -26,7 +26,8 @@ const KNOWN_PROVIDERS = [
   'Perplexity',
   'xAI',
   'Cohere',
-  'Nebius'
+  'Nebius',
+  'Z.AI'
 ]
 
 export function OpenRouterRouting(): React.JSX.Element {
