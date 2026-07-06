@@ -115,7 +115,7 @@ export function WorkflowEditor({
                   <span
                     key={p}
                     className={`rounded-full px-2 py-0.5 text-xs font-mono ${
-                      present ? 'bg-green-100 text-green-800' : 'bg-ink-100 text-ink-700'
+                      present ? 'bg-success/15 text-success' : 'bg-ink-100 text-ink-700'
                     }`}
                   >
                     %{p}%
@@ -128,7 +128,7 @@ export function WorkflowEditor({
           <div className="flex min-h-0 flex-1 flex-col">
             <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
               Workflow JSON{' '}
-              {!validJson && <span className="text-red-700 normal-case">• invalid JSON</span>}
+              {!validJson && <span className="text-danger normal-case">• invalid JSON</span>}
             </label>
             {loading ? (
               <div className="text-sm text-ink-700">Loading…</div>
@@ -142,7 +142,7 @@ export function WorkflowEditor({
             )}
           </div>
 
-          {error && <div className="text-sm text-red-700 whitespace-pre-wrap">{error}</div>}
+          {error && <div className="text-sm text-danger whitespace-pre-wrap">{error}</div>}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-ink-200 px-5 py-3">

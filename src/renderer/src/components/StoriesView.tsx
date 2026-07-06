@@ -437,7 +437,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => stopOneClick()}
-                className="rounded-md border border-red-300 bg-surface px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
+                className="rounded-md border border-danger/50 bg-surface px-4 py-2 text-sm text-danger font-medium hover:bg-danger/10"
               >
                 Stop
               </button>
@@ -455,7 +455,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               <button
                 type="button"
                 onClick={onCancel}
-                className="rounded-md border border-red-300 bg-surface px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
+                className="rounded-md border border-danger/50 bg-surface px-4 py-2 text-sm text-danger font-medium hover:bg-danger/10"
               >
                 Cancel
               </button>
@@ -475,7 +475,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => cancelImage()}
-                className="rounded-md border border-red-300 bg-surface px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
+                className="rounded-md border border-danger/50 bg-surface px-4 py-2 text-sm text-danger font-medium hover:bg-danger/10"
               >
                 Cancel
               </button>
@@ -534,12 +534,12 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
         </div>
 
         {generationError && (
-          <div className="border-t border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700 whitespace-pre-wrap">
+          <div className="border-t border-danger/30 bg-danger/12 px-6 py-2 text-sm text-danger whitespace-pre-wrap">
             {generationError}
           </div>
         )}
         {imageError && (
-          <div className="border-t border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-800 whitespace-pre-wrap">
+          <div className="border-t border-warning/30 bg-warning/15 px-6 py-2 text-sm text-warning whitespace-pre-wrap">
             Image generation: {imageError}
           </div>
         )}
@@ -584,19 +584,19 @@ export function StoriesView(): React.JSX.Element {
           <EditorErrorBoundary
             fallback={(error, reset) => (
               <div className="h-full overflow-y-auto p-8">
-                <div className="max-w-2xl mx-auto rounded-lg border border-red-200 bg-red-50 p-6">
-                  <h3 className="text-lg font-semibold text-red-900 mb-2">
+                <div className="max-w-2xl mx-auto rounded-lg border border-danger/30 bg-danger/12 p-6">
+                  <h3 className="text-lg font-semibold text-danger mb-2">
                     Couldn't display this story
                   </h3>
-                  <p className="text-sm text-red-800 mb-3">
+                  <p className="text-sm text-danger mb-3">
                     The editor crashed while rendering "{active.meta.title ?? '(no title)'}". The
                     story file may be corrupted, or a recent change to the schema is incompatible
                     with the saved data.
                   </p>
-                  <pre className="text-xs font-mono bg-surface border border-red-200 rounded p-3 overflow-x-auto mb-4 text-red-900">
+                  <pre className="text-xs font-mono bg-surface border border-danger/30 rounded p-3 overflow-x-auto mb-4 text-danger">
                     {error.message}
                   </pre>
-                  <div className="text-xs text-red-800 mb-4">
+                  <div className="text-xs text-danger mb-4">
                     The raw file is at <code>{active.meta.slug}/story.md</code> in your workspace.
                     You can edit it directly, or delete the story below.
                   </div>
@@ -623,7 +623,7 @@ export function StoriesView(): React.JSX.Element {
                           reset()
                         }
                       }}
-                      className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white font-medium hover:bg-red-700"
+                      className="rounded-md bg-danger px-3 py-1.5 text-sm text-white font-medium hover:opacity-90"
                     >
                       Delete this story
                     </button>
@@ -681,7 +681,7 @@ export function StoriesView(): React.JSX.Element {
                       await remove(workspace, s.id)
                     }
                   }}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-md text-ink-700 hover:bg-red-100 hover:text-red-700 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition text-lg leading-none"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-md text-ink-700 hover:bg-danger/15 hover:text-danger flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition text-lg leading-none"
                   aria-label={`Delete ${s.title}`}
                 >
                   ×

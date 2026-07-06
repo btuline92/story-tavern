@@ -212,7 +212,7 @@ function GreetingsEditor({
             <button
               type="button"
               onClick={() => onChange(value.filter((_, j) => j !== i))}
-              className="text-xs text-ink-700 hover:text-red-700"
+              className="text-xs text-ink-700 hover:text-danger"
             >
               Remove
             </button>
@@ -435,7 +435,7 @@ export function CharacterDetail(): React.JSX.Element {
         </div>
 
         {exportNotice && (
-          <div className="mb-4 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800 break-all">
+          <div className="mb-4 rounded-md border border-success/30 bg-success/12 px-3 py-2 text-sm text-success break-all">
             {exportNotice}
           </div>
         )}

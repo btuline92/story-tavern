@@ -1,17 +1,79 @@
 @import 'tailwindcss';
 
-@theme {
-  /* Dark blue theme. The `ink` scale runs dark→light: ink-50 is the darkest (base
-     background), ink-900 is the lightest (primary text). `surface` is the elevated
-     card/input/header color (what used to be plain white). */
-  --color-ink-50: #0e1626;
-  --color-ink-100: #202c46;
-  --color-ink-200: #2b3a58;
-  --color-ink-700: #9aa9c9;
-  --color-ink-900: #e9eefb;
-  --color-surface: #172136;
-  --color-accent-500: #4d79f2;
-  --color-accent-600: #3d61d6;
+/*
+  Theming: Tailwind color utilities resolve to CSS variables (via `@theme inline`), and each
+  theme sets those variables under a `[data-theme=…]` selector on <html>. Switching the
+  attribute reskins the whole app at runtime — no rebuild, no per-component edits.
+
+  Token roles:
+    ink-50   base / page background (darkest in dark themes)
+    ink-100  hover / subtle raised
+    ink-200  borders
+    ink-700  muted / secondary text
+    ink-900  primary text (lightest in dark themes)
+    surface  elevated cards, inputs, headers
+    accent-* interactive accent (buttons, links, focus rings)
+    danger / success / warning  status colors (use `/NN` alpha for soft fills)
+*/
+@theme inline {
+  --color-ink-50: var(--ink-50);
+  --color-ink-100: var(--ink-100);
+  --color-ink-200: var(--ink-200);
+  --color-ink-700: var(--ink-700);
+  --color-ink-900: var(--ink-900);
+  --color-surface: var(--surface);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+}
+
+/* ---- Themes ---- */
+:root,
+[data-theme='midnight'] {
+  color-scheme: dark;
+  --ink-50: #0e1626;
+  --ink-100: #202c46;
+  --ink-200: #2b3a58;
+  --ink-700: #9aa9c9;
+  --ink-900: #e9eefb;
+  --surface: #172136;
+  --accent-500: #4d79f2;
+  --accent-600: #3d61d6;
+  --danger: #f2555a;
+  --success: #3ecf8e;
+  --warning: #e0a94a;
+}
+
+[data-theme='slate'] {
+  color-scheme: dark;
+  --ink-50: #0f1115;
+  --ink-100: #21252d;
+  --ink-200: #30353f;
+  --ink-700: #a2a8b3;
+  --ink-900: #eef1f4;
+  --surface: #171a20;
+  --accent-500: #6d86ff;
+  --accent-600: #566fe6;
+  --danger: #f2555a;
+  --success: #3ecf8e;
+  --warning: #e0a94a;
+}
+
+[data-theme='parchment'] {
+  color-scheme: light;
+  --ink-50: #f8f7f4;
+  --ink-100: #e9e6dd;
+  --ink-200: #d3cebd;
+  --ink-700: #5c574c;
+  --ink-900: #1c1b17;
+  --surface: #ffffff;
+  --accent-500: #8b5e3c;
+  --accent-600: #6f4a2f;
+  --danger: #b3261e;
+  --success: #2e7d4f;
+  --warning: #b7791f;
 }
 
 html,
@@ -27,16 +89,78 @@ body,
     sans-serif;
   background: var(--color-ink-50);
   color: var(--color-ink-900);
-  /* Renders native controls (select, number spinners, checkboxes, scrollbars) dark. */
-  color-scheme: dark;
 }
 
 ::selection {
-  background: rgba(77, 121, 242, 0.35);
+  background: color-mix(in srgb, var(--color-accent-500) 40%, transparent);
 }
 
 /* Slim, theme-matched scrollbars. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-ink-200) transparent;
+}
+
+/*
+  Reusable component classes. Structural + color styling lives here so a restyle (or a new
+  global theme with different shapes) is a single-file change. Components use e.g.
+  `className="st-btn st-btn-primary"`.
+*/
+@layer components {
+  .st-card {
+    @apply rounded-lg border border-ink-200 bg-surface;
+  }
+  .st-panel {
+    @apply rounded-md border border-ink-200 bg-surface;
+  }
+
+  /* Width-agnostic — add `w-full`/`flex-1` at the call site as needed. */
+  .st-input,
+  .st-select,
+  .st-textarea {
+    @apply rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:opacity-60;
+  }
+  .st-textarea {
+    @apply resize-y;
+  }
+
+  .st-label {
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-700;
+  }
+
+  .st-btn {
+    @apply inline-flex items-center justify-center gap-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .st-btn-sm {
+    @apply px-3 py-1.5;
+  }
+  .st-btn-default {
+    @apply border-ink-200 bg-surface text-ink-900 hover:bg-ink-100;
+  }
+  .st-btn-primary {
+    @apply border-transparent bg-accent-500 text-white hover:bg-accent-600;
+  }
+  .st-btn-danger {
+    @apply border-transparent bg-danger text-white hover:opacity-90;
+  }
+  .st-btn-ghost {
+    @apply border-transparent text-ink-700 hover:bg-ink-100 hover:text-ink-900;
+  }
+
+  .st-alert {
+    @apply rounded-md border px-3 py-2 text-sm;
+  }
+  .st-alert-danger {
+    @apply border-danger/40 bg-danger/12 text-danger;
+  }
+  .st-alert-success {
+    @apply border-success/40 bg-success/12 text-success;
+  }
+  .st-alert-warning {
+    @apply border-warning/40 bg-warning/15 text-warning;
+  }
+
+  .st-chip {
+    @apply inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-xs text-ink-700;
+  }
 }

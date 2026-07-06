@@ -63,7 +63,7 @@ function BlockRow({
           {block.role}
         </span>
         {block.marker && (
-          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs bg-amber-100 text-amber-800">
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs bg-warning/20 text-warning">
             dynamic
           </span>
         )}
@@ -116,7 +116,7 @@ function BlockRow({
             </button>
           </div>
           {block.marker ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <div className="rounded-md border border-warning/30 bg-warning/15 px-3 py-2 text-xs text-warning">
               Dynamic content: <strong>{MARKER_LABELS[block.markerType ?? 'unsupported']}</strong>.
               {block.markerType === 'unsupported'
                 ? ' No equivalent in this app — emits nothing.'
@@ -258,7 +258,7 @@ function PresetEditor({
       </div>
 
       {notice && (
-        <div className="border-b border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800 break-all">
+        <div className="border-b border-success/30 bg-success/12 px-4 py-2 text-sm text-success break-all">
           {notice}
         </div>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
+import { useTheme, THEMES } from '../stores/theme'
 import type { ProviderId } from '../types'
 import { ModelSelect } from './ModelSelect'
 import { GenerationSettingsPanel } from './GenerationSettings'
@@ -59,7 +60,7 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
   }
 
   return (
-    <div className="rounded-lg border border-ink-200 bg-surface p-4 mb-3">
+    <div className="st-card p-4 mb-3">
       <div className="flex items-center justify-between mb-3">
         <div>
           <div className="font-medium text-ink-900">{name}</div>
@@ -83,13 +84,13 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={hasKey[provider] ? '••••••••  (paste a new key to replace)' : 'API key'}
-          className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+          className="st-input flex-1"
         />
         <button
           type="button"
           onClick={onSave}
           disabled={saving || !input.trim()}
-          className="rounded-md bg-accent-500 px-3 py-2 text-sm text-white font-medium hover:bg-accent-600 disabled:opacity-50"
+          className="st-btn st-btn-primary"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -97,7 +98,7 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
           type="button"
           onClick={onTest}
           disabled={testing || (!hasKey[provider] && !input.trim())}
-          className="rounded-md border border-ink-200 px-3 py-2 text-sm font-medium hover:bg-ink-100 disabled:opacity-50"
+          className="st-btn st-btn-default"
         >
           {testing ? 'Testing…' : 'Test'}
         </button>
@@ -113,7 +114,7 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
       </div>
       {result && (
         <div
-          className={`mt-3 text-sm ${result.ok ? 'text-green-700' : 'text-red-700'} whitespace-pre-wrap`}
+          className={`mt-3 text-sm ${result.ok ? 'text-success' : 'text-danger'} whitespace-pre-wrap`}
         >
           {result.ok ? '✓ Connection successful' : `✗ ${result.error}`}
         </div>
@@ -126,6 +127,7 @@ export function Settings(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
   const switchWorkspace = useWorkspace((s) => s.switchWorkspace)
   const { settings, setProvider, load, loaded } = useSettings()
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     if (!loaded) load(workspace)
@@ -137,13 +139,29 @@ export function Settings(): React.JSX.Element {
     <div className="h-full overflow-y-auto p-8">
       <h2 className="text-2xl font-semibold text-ink-900 mb-6">Settings</h2>
 
-      <div className="rounded-lg border border-ink-200 bg-surface p-4 mb-6">
+      <div className="st-card p-4 mb-6">
+        <div className="font-medium text-ink-900 mb-1">Theme</div>
+        <div className="text-sm text-ink-700 mb-3">Applies everywhere, saved on this machine.</div>
+        <select
+          value={theme}
+          onChange={(e) => setTheme(e.target.value as (typeof THEMES)[number]['id'])}
+          className="st-select"
+        >
+          {THEMES.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="st-card p-4 mb-6">
         <div className="font-medium text-ink-900 mb-1">Workspace</div>
         <div className="text-sm text-ink-700 mb-3 break-all">{workspace}</div>
         <button
           type="button"
           onClick={() => switchWorkspace()}
-          className="rounded-md border border-ink-200 px-3 py-1.5 text-sm hover:bg-ink-100"
+          className="st-btn st-btn-sm st-btn-default"
         >
           Switch workspace…
         </button>
@@ -154,7 +172,7 @@ export function Settings(): React.JSX.Element {
         <select
           value={settings.selectedProvider}
           onChange={(e) => setProvider(workspace, e.target.value as ProviderId)}
-          className="rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
+          className="st-select"
         >
           {PROVIDERS.map((p) => (
             <option key={p.id} value={p.id}>

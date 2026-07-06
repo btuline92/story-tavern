@@ -147,7 +147,7 @@ export function ModelSelect({ provider, value, hasKey, onChange }: Props): React
           {loading ? '…' : '↻'}
         </button>
       </div>
-      {error && <div className="mt-1 text-xs text-red-700">{error}</div>}
+      {error && <div className="mt-1 text-xs text-danger">{error}</div>}
       {open && (
         <div className="absolute z-10 mt-1 w-full max-h-72 overflow-y-auto rounded-md border border-ink-200 bg-surface shadow-lg">
           {loading && <div className="px-3 py-2 text-sm text-ink-700">Loading…</div>}

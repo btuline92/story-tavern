@@ -118,7 +118,7 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
           className="w-full rounded-md border border-ink-200 px-3 py-2 mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 resize-y"
         />
 
-        {error && <div className="text-sm text-red-700 mb-3">{error}</div>}
+        {error && <div className="text-sm text-danger mb-3">{error}</div>}
 
         <div className="flex justify-end gap-2">
           <button

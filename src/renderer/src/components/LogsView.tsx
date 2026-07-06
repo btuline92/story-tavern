@@ -28,10 +28,10 @@ function StatusBadge({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
   let cls = 'bg-ink-100 text-ink-700'
   let text = entry.status != null ? String(entry.status) : '—'
   if (isError) {
-    cls = 'bg-red-100 text-red-800'
+    cls = 'bg-danger/15 text-danger'
     text = entry.status != null ? String(entry.status) : 'ERR'
   } else if (isOk) {
-    cls = 'bg-green-100 text-green-800'
+    cls = 'bg-success/15 text-success'
   }
   return (
     <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-mono ${cls}`}>{text}</span>
@@ -79,7 +79,7 @@ function LogRow({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
         <span className="text-xs text-ink-700 w-32 truncate">{entry.kind}</span>
         <span className="text-xs text-ink-700 truncate flex-1">
           {entry.model ?? '—'}
-          {entry.error && <span className="text-red-700"> · {entry.error.slice(0, 80)}</span>}
+          {entry.error && <span className="text-danger"> · {entry.error.slice(0, 80)}</span>}
         </span>
         <span className="text-xs text-ink-700 tabular-nums whitespace-nowrap">
           {fmtDuration(entry.duration_ms)}
@@ -116,8 +116,8 @@ function LogRow({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
           )}
           {entry.error && (
             <div>
-              <div className="text-red-700 mb-1">Error</div>
-              <pre className="whitespace-pre-wrap break-words text-red-900 bg-red-50 border border-red-200 rounded p-2">
+              <div className="text-danger mb-1">Error</div>
+              <pre className="whitespace-pre-wrap break-words text-danger bg-danger/12 border border-danger/30 rounded p-2">
                 {entry.error}
               </pre>
             </div>

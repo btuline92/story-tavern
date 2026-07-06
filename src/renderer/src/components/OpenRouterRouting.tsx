@@ -115,7 +115,7 @@ export function OpenRouterRouting(): React.JSX.Element {
                 type="button"
                 onClick={() => remove(name)}
                 title="Remove"
-                className="px-1 text-ink-700 hover:text-red-700"
+                className="px-1 text-ink-700 hover:text-danger"
               >
                 ×
               </button>

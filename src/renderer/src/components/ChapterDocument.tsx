@@ -216,7 +216,7 @@ export function ChapterDocument({
                     type="button"
                     onClick={() => deleteImage(seg.id)}
                     title="Remove this image"
-                    className="rounded-md bg-surface/90 px-2 py-1 text-xs text-red-700 shadow hover:bg-surface"
+                    className="rounded-md bg-surface/90 px-2 py-1 text-xs text-danger shadow hover:bg-surface"
                   >
                     ✕
                   </button>

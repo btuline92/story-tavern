@@ -323,7 +323,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
           </button>
         </div>
         {testResult && (
-          <div className={`mt-2 text-sm ${testResult.ok ? 'text-green-700' : 'text-red-700'}`}>
+          <div className={`mt-2 text-sm ${testResult.ok ? 'text-success' : 'text-danger'}`}>
             {testResult.ok ? '✓ Connected' : `✗ ${testResult.error}`}
           </div>
         )}
@@ -388,7 +388,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
           ↻ Fetch model/sampler lists
         </button>
       </div>
-      {infoError && <div className="text-xs text-red-700 mb-2">{infoError}</div>}
+      {infoError && <div className="text-xs text-danger mb-2">{infoError}</div>}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <ComboField
           label="Model (checkpoint)"
