@@ -68,6 +68,9 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     imageGenerating,
     imageStatus,
     imageError,
+    oneClickActive,
+    oneClickTarget,
+    oneClickChunk,
     updateChapter,
     addChapter,
     selectChapter,
@@ -77,6 +80,8 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     generateImage,
     regenerateImage,
     cancelImage,
+    startOneClick,
+    stopOneClick,
     remove
   } = useStories()
   const { characters } = useCharacters()
@@ -85,6 +90,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const [outlineDraft, setOutlineDraft] = useState('')
   const [contentDraft, setContentDraft] = useState('')
   const [userNote, setUserNote] = useState('')
+  const [targetWords, setTargetWords] = useState(1000)
   const [saving, setSaving] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(true)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -193,7 +199,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     await cancelContinue()
   }
 
-  const busy = generating || imageGenerating
+  const busy = generating || imageGenerating || oneClickActive
 
   const proseTail = (): string => {
     const prose = contentDraft.replace(IMAGE_MARKER_RE, '').trim()
@@ -204,6 +210,19 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     if (!chapter) return
     await flushSave()
     await generateImage(workspace, chapter.number, proseTail())
+  }
+
+  const onAutoWrite = async (): Promise<void> => {
+    if (!chapter || targetWords <= 0) return
+    const note = imageEnabled
+      ? 'Each pass writes one chunk — sized by your generation settings (max tokens) — and adds an inline image after it.'
+      : 'Each pass writes one chunk, sized by your generation settings (max tokens). Image generation is off, so no images will be added.'
+    const ok = confirm(
+      `Auto-write this chapter toward ~${targetWords} words?\n\n${note}\n\nThis can take a while and locks the editor until it finishes or you press Stop.`
+    )
+    if (!ok) return
+    await flushSave()
+    await startOneClick(workspace, targetWords)
   }
 
   const canRegenerate = !!lastGen && lastGen.chapterNumber === activeChapterNumber
@@ -398,7 +417,32 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             placeholder="Author note for this generation (optional, not saved)"
             className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-50"
           />
-          {generating ? (
+          {oneClickActive ? (
+            <>
+              <div className="flex items-center gap-2 text-xs text-accent-600 whitespace-nowrap">
+                <span className="inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse" />
+                Auto-writing · chunk {oneClickChunk}
+                {generating
+                  ? ' · writing'
+                  : imageGenerating
+                    ? imageStatus === 'tagging'
+                      ? ' · tagging'
+                      : imageStatus === 'saving'
+                        ? ' · saving image'
+                        : ' · image'
+                    : ''}
+                {oneClickTarget != null &&
+                  ` · ~${wordCount((chapter?.content ?? '').replace(IMAGE_MARKER_RE, ''))}/${oneClickTarget} words`}
+              </div>
+              <button
+                type="button"
+                onClick={() => stopOneClick()}
+                className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
+              >
+                Stop
+              </button>
+            </>
+          ) : generating ? (
             <>
               <div className="text-xs text-ink-700 whitespace-nowrap tabular-nums">
                 {streamBuffer.length.toLocaleString()} chars{' '}
@@ -461,6 +505,23 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
                   🖼 Image
                 </button>
               )}
+              <input
+                type="number"
+                value={targetWords}
+                min={100}
+                step={100}
+                onChange={(e) => setTargetWords(Math.max(0, Number(e.target.value) || 0))}
+                title="Target word count for Auto-write"
+                className="w-20 rounded-md border border-ink-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              />
+              <button
+                type="button"
+                onClick={onAutoWrite}
+                title="Keep generating (one chunk + inline image per pass) until the chapter reaches the target word count"
+                className="rounded-md border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 hover:bg-ink-100"
+              >
+                ✍ To length
+              </button>
               <button
                 type="button"
                 onClick={onContinue}

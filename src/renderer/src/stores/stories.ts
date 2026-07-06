@@ -14,6 +14,24 @@ function imageMarker(relPath: string, positive: string): string {
   return `![scene](${relPath} "${title}")`
 }
 
+/** Count prose words in a chapter, ignoring inline image markers. */
+const IMAGE_MARKER_RE = /!\[[^\]]*\]\([^)]*\)/g
+function chapterWordCount(active: StoryWithChapters | null, chapterNumber: number): number {
+  const ch = active?.chapters.find((c) => c.number === chapterNumber)
+  if (!ch) return 0
+  return (ch.content.replace(IMAGE_MARKER_RE, '').trim().match(/\S+/g) ?? []).length
+}
+
+// Resolves the in-flight one-click chunk once its generation settles (done or error).
+let settleChunk: ((result: 'done' | 'error') => void) | null = null
+function settleActiveChunk(result: 'done' | 'error'): void {
+  if (settleChunk) {
+    const f = settleChunk
+    settleChunk = null
+    f(result)
+  }
+}
+
 interface StoriesState {
   stories: StoryMeta[]
   selectedId: string | null
@@ -42,6 +60,12 @@ interface StoriesState {
   imageStatus: ImagePhase | null
   imageError: string | null
   imageGenId: string | null
+  /** One-click "write to target length" loop state. */
+  oneClickActive: boolean
+  oneClickTarget: number | null
+  oneClickChunk: number
+  /** Text of the most recently generated chunk — the one-click loop uses it for that chunk's image. */
+  lastGeneratedText: string
   loadList: (workspace: string) => Promise<void>
   open: (workspace: string, id: string) => Promise<void>
   closeActive: () => void
@@ -68,9 +92,12 @@ interface StoriesState {
   ) => Promise<Chapter>
   addChapter: (workspace: string) => Promise<void>
   selectChapter: (chapterNumber: number) => void
-  startContinue: (workspace: string, userNote?: string) => Promise<void>
+  startContinue: (workspace: string, userNote?: string, targetWords?: number) => Promise<void>
   regenerate: (workspace: string, userNote?: string) => Promise<void>
   cancelContinue: () => Promise<void>
+  /** Repeatedly Continue (one chunk + image per pass) until the chapter hits targetWords. */
+  startOneClick: (workspace: string, targetWords: number) => Promise<void>
+  stopOneClick: () => Promise<void>
   /** Generate an inline image for a passage and append its marker to the chapter. */
   generateImage: (workspace: string, chapterNumber: number, passageText: string) => Promise<void>
   /** Generate an image and return the result without inserting it (for in-place replace). */
@@ -107,6 +134,10 @@ export const useStories = create<StoriesState>((set, get) => ({
   imageStatus: null,
   imageError: null,
   imageGenId: null,
+  oneClickActive: false,
+  oneClickTarget: null,
+  oneClickChunk: 0,
+  lastGeneratedText: '',
   loadList: async (workspace) => {
     set({ loading: true })
     const list = await window.api.stories.list(workspace)
@@ -197,7 +228,7 @@ export const useStories = create<StoriesState>((set, get) => ({
       lastGen: null
     }),
 
-  startContinue: async (workspace, userNote) => {
+  startContinue: async (workspace, userNote, targetWords) => {
     const current = get().active
     const chapterNumber = get().activeChapterNumber
     if (!current || chapterNumber == null) return
@@ -215,7 +246,8 @@ export const useStories = create<StoriesState>((set, get) => ({
       workspace,
       current.meta.id,
       chapterNumber,
-      userNote
+      userNote,
+      targetWords
     )
     if ('error' in result) {
       set({
@@ -327,6 +359,62 @@ export const useStories = create<StoriesState>((set, get) => ({
     }
   },
 
+  startOneClick: async (workspace, targetWords) => {
+    if (get().oneClickActive || get().generating || get().imageGenerating) return
+    const cur0 = get().active
+    const chapterNumber = get().activeChapterNumber
+    if (!cur0 || chapterNumber == null || !targetWords || targetWords <= 0) return
+    const storyId = cur0.meta.id
+    const imageEnabled = useSettings.getState().settings?.image.enabled ?? false
+    set({
+      oneClickActive: true,
+      oneClickTarget: targetWords,
+      oneClickChunk: 0,
+      generationError: null,
+      imageError: null
+    })
+    const MAX_CHUNKS = 60 // safety cap against a runaway loop
+    try {
+      for (let i = 0; i < MAX_CHUNKS; i++) {
+        if (!get().oneClickActive) break
+        const act = get().active
+        // Bail if the user navigated to a different story/chapter mid-run.
+        if (!act || act.meta.id !== storyId || get().activeChapterNumber !== chapterNumber) break
+        const before = chapterWordCount(act, chapterNumber)
+        if (before >= targetWords) break
+        set({ oneClickChunk: i + 1 })
+
+        // 1. Generate one text chunk and wait for it to settle (done or error).
+        const settled = new Promise<'done' | 'error'>((resolve) => {
+          settleChunk = resolve
+        })
+        await get().startContinue(workspace, undefined, targetWords)
+        if (get().generationStreamId == null) settleActiveChunk('error') // failed to start
+        const outcome = await settled
+        if (outcome === 'error' || !get().oneClickActive) break
+
+        // 2. Inline image for this chunk (sequential — keeps ordering clean, avoids races).
+        if (imageEnabled && get().oneClickActive) {
+          const passage = get().lastGeneratedText
+          if (passage.trim()) await get().generateImage(workspace, chapterNumber, passage)
+        }
+        if (!get().oneClickActive) break
+
+        // 3. Stop if the chunk made no progress (empty/refused response).
+        if (chapterWordCount(get().active, chapterNumber) <= before) break
+      }
+    } finally {
+      set({ oneClickActive: false, oneClickTarget: null, oneClickChunk: 0 })
+    }
+  },
+  stopOneClick: async () => {
+    set({ oneClickActive: false })
+    // Unblock the awaited chunk even if the underlying stream event is lost.
+    settleActiveChunk('error')
+    if (get().generating) await get().cancelContinue()
+    if (get().imageGenerating) await get().cancelImage()
+  },
+
   _onStreamDelta: (streamId, delta) => {
     if (streamId !== get().generationStreamId) return
     set({ streamBuffer: get().streamBuffer + delta })
@@ -351,6 +439,7 @@ export const useStories = create<StoriesState>((set, get) => ({
           streamBuffer: '',
           reasoningBuffer: ''
         })
+        settleActiveChunk('error')
         return
       }
       const ch = current.chapters.find((c) => c.number === chapterNumber)
@@ -362,6 +451,7 @@ export const useStories = create<StoriesState>((set, get) => ({
           streamBuffer: '',
           reasoningBuffer: ''
         })
+        settleActiveChunk('error')
         return
       }
       const text = (fullText ?? '').trim()
@@ -385,13 +475,16 @@ export const useStories = create<StoriesState>((set, get) => ({
           reasoningBuffer: '',
           externalChapterRevision: get().externalChapterRevision + 1,
           pendingGenBefore: null,
-          lastGen: { chapterNumber, before, after: newContent }
+          lastGen: { chapterNumber, before, after: newContent },
+          lastGeneratedText: text
         })
-        // Auto-generate an inline image for the passage just written, if enabled.
+        // Auto-generate an inline image for the passage just written, if enabled. Skipped
+        // during a one-click run — that loop sequences its own image per chunk.
         const image = useSettings.getState().settings?.image
-        if (image?.enabled && image.autoAfterContinue) {
+        if (!get().oneClickActive && image?.enabled && image.autoAfterContinue) {
           void get().generateImage(workspace, chapterNumber, text)
         }
+        settleActiveChunk('done')
       } catch (e) {
         set({
           generating: false,
@@ -401,6 +494,7 @@ export const useStories = create<StoriesState>((set, get) => ({
           reasoningBuffer: '',
           generationError: e instanceof Error ? e.message : String(e)
         })
+        settleActiveChunk('error')
       }
     } catch (e) {
       // Defensive: any unexpected throw in the body still releases the editor.
@@ -414,6 +508,7 @@ export const useStories = create<StoriesState>((set, get) => ({
         pendingGenBefore: null,
         generationError: e instanceof Error ? e.message : String(e)
       })
+      settleActiveChunk('error')
     }
   },
   _onStreamError: (streamId, error) => {
@@ -427,6 +522,7 @@ export const useStories = create<StoriesState>((set, get) => ({
       streamBuffer: '',
       reasoningBuffer: ''
     })
+    settleActiveChunk('error')
   },
   _onImageProgress: (genId, phase) => {
     if (genId !== get().imageGenId) return

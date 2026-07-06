@@ -308,9 +308,17 @@ const api = {
       workspace: string,
       storyId: string,
       chapterNumber: number,
-      userNote?: string
+      userNote?: string,
+      targetWords?: number
     ): Promise<{ streamId: string } | { error: string }> =>
-      ipcRenderer.invoke('generation:continue-stream', workspace, storyId, chapterNumber, userNote),
+      ipcRenderer.invoke(
+        'generation:continue-stream',
+        workspace,
+        storyId,
+        chapterNumber,
+        userNote,
+        targetWords
+      ),
     cancel: (streamId: string): Promise<boolean> =>
       ipcRenderer.invoke('generation:cancel', streamId),
     onDelta: (handler: (streamId: string, delta: string) => void): (() => void) =>

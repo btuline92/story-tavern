@@ -20,7 +20,8 @@ export function registerGenerationIpc(): void {
       workspace: string,
       storyId: string,
       chapterNumber: number,
-      userNote?: string
+      userNote?: string,
+      targetWords?: number
     ): Promise<{ streamId: string } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
       const provider: ProviderId = settings.selectedProvider
@@ -48,7 +49,8 @@ export function registerGenerationIpc(): void {
           content: c.content
         })),
         activeChapterNumber: chapterNumber,
-        userNote
+        userNote,
+        targetWords
       })
 
       const streamId = ulid()
