@@ -84,20 +84,27 @@ export function registerImageIpc(): void {
         if (!apiKey)
           return { error: `No API key saved for ${provider} (needed for image tagging).` }
 
-        const entries = buildTagEntries({ image, characters, passageText })
+        const activePrompt =
+          image.tagPrompts.find((p) => p.name === image.activeTagPrompt) ?? image.tagPrompts[0]
+        // Interpolate character macros in the tag prompt (e.g. the Male POV prompt uses
+        // {{char}} / {{user}}), matching how the story prompt assembler resolves them.
+        const charNames =
+          characters
+            .map((c) => c.name)
+            .filter((n) => n && n.trim())
+            .join(' and ') || 'the character'
+        const tagInstruction = (activePrompt?.text ?? '')
+          .replace(/\{\{char\}\}/g, charNames)
+          .replace(/\{\{user\}\}/g, 'the protagonist')
+        const entries = buildTagEntries({ image, characters, passageText, tagInstruction })
         const disableThinking = image.tagDisableThinking
+        // Inherit the workspace LLM settings for tagging; the ONLY sampling override is
+        // temperature (tagTemperature). Reasoning is controlled separately by the tag-thinking
+        // toggle. Previously we clobbered top_p/top_k/penalties/etc. with defaults, which lost
+        // the user's configured values (e.g. sent top_p=1 instead of the settings' 0.95).
         const tagGen: GenerationSettings = {
           ...settings.generation,
-          max_tokens: 600,
           temperature: image.tagTemperature,
-          top_p: 1,
-          top_k: null,
-          min_p: null,
-          seed: null,
-          stop_sequences: [],
-          frequency_penalty: 0,
-          presence_penalty: 0,
-          // Off when thinking is disabled for tagging; otherwise inherit the workspace level.
           reasoning_level: disableThinking ? 'off' : settings.generation.reasoning_level
         }
 

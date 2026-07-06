@@ -139,7 +139,8 @@ export function ImageSettingsPanel(): React.JSX.Element {
   const [info, setInfo] = useState<ComfyObjectInfo | null>(null)
   const [infoError, setInfoError] = useState<string | null>(null)
   const [workflows, setWorkflows] = useState<string[]>([])
-  const [editorOpen, setEditorOpen] = useState(false)
+  // null = editor closed; a string = open the workflow editor for that filename (existing or new).
+  const [editorName, setEditorName] = useState<string | null>(null)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -206,6 +207,60 @@ export function ImageSettingsPanel(): React.JSX.Element {
     const list = await window.api.comfy.deleteWorkflow(workspace, draft.workflow)
     setWorkflows(list)
     if (!list.includes(draft.workflow)) set('workflow', list[0] ?? '')
+  }
+
+  const onNewWorkflow = (): void => {
+    // Open the editor with a fresh, unused filename. readWorkflow falls back to the default
+    // template for a name that doesn't exist yet, so the editor opens pre-filled; saving creates it.
+    const existing = new Set(workflows)
+    let name = 'Workflow.json'
+    let n = 2
+    while (existing.has(name)) {
+      name = `Workflow-${n}.json`
+      n += 1
+    }
+    setEditorName(name)
+  }
+
+  // --- Tag prompts (named "scene instruction" prompts; one active at a time) ---
+  const activeIdx = Math.max(
+    0,
+    draft.tagPrompts.findIndex((p) => p.name === draft.activeTagPrompt)
+  )
+  const activePrompt = draft.tagPrompts[activeIdx]
+
+  const uniquePromptName = (base: string): string => {
+    const names = new Set(draft.tagPrompts.map((p) => p.name))
+    if (!names.has(base)) return base
+    let n = 2
+    while (names.has(`${base} ${n}`)) n += 1
+    return `${base} ${n}`
+  }
+  const addTagPrompt = (): void => {
+    const name = uniquePromptName('Prompt')
+    setDraft({
+      ...draft,
+      tagPrompts: [...draft.tagPrompts, { name, text: activePrompt?.text ?? '' }],
+      activeTagPrompt: name
+    })
+  }
+  const deleteTagPrompt = (): void => {
+    if (draft.tagPrompts.length <= 1) return
+    const next = draft.tagPrompts.filter((_, i) => i !== activeIdx)
+    setDraft({ ...draft, tagPrompts: next, activeTagPrompt: next[0].name })
+  }
+  const renameActivePrompt = (name: string): void => {
+    setDraft({
+      ...draft,
+      tagPrompts: draft.tagPrompts.map((p, i) => (i === activeIdx ? { ...p, name } : p)),
+      activeTagPrompt: name
+    })
+  }
+  const setActivePromptText = (text: string): void => {
+    setDraft({
+      ...draft,
+      tagPrompts: draft.tagPrompts.map((p, i) => (i === activeIdx ? { ...p, text } : p))
+    })
   }
 
   return (
@@ -294,7 +349,14 @@ export function ImageSettingsPanel(): React.JSX.Element {
           </select>
           <button
             type="button"
-            onClick={() => setEditorOpen(true)}
+            onClick={onNewWorkflow}
+            className="rounded-md border border-ink-200 px-3 py-2 text-sm hover:bg-ink-100"
+          >
+            New…
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditorName(draft.workflow)}
             className="rounded-md border border-ink-200 px-3 py-2 text-sm hover:bg-ink-100"
           >
             Edit…
@@ -389,18 +451,81 @@ export function ImageSettingsPanel(): React.JSX.Element {
       {/* Tag generation prompts */}
       <div className="mt-4 pt-4 border-t border-ink-200">
         <div className="font-medium text-ink-900 mb-3">Tag generation (LLM → Danbooru tags)</div>
+
+        <div className="mb-4">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
+            Appearance source
+          </label>
+          <select
+            value={draft.appearanceSource}
+            onChange={(e) =>
+              set('appearanceSource', e.target.value as 'description' | 'appearance')
+            }
+            className="rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
+          >
+            <option value="description">Character description</option>
+            <option value="appearance">Appearance tags</option>
+          </select>
+          <div className="text-xs text-ink-700 mt-1">
+            How the tagger learns each character&apos;s looks. &quot;Appearance tags&quot; sends a
+            compact &quot;Name: tags&quot; line per character; &quot;Character description&quot;
+            sends the full description prose.
+          </div>
+        </div>
+
         <TextAreaField
           label="Tag system prompt"
           value={draft.tagSystemPrompt}
           rows={8}
           onChange={(v) => set('tagSystemPrompt', v)}
         />
-        <TextAreaField
-          label="Scene instruction (image tag prompt)"
-          value={draft.tagInstruction}
-          rows={4}
-          onChange={(v) => set('tagInstruction', v)}
-        />
+
+        <div className="mb-4">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
+            Image tag prompt (scene instruction)
+          </label>
+          <div className="flex gap-2 mb-2">
+            <select
+              value={activePrompt?.name ?? ''}
+              onChange={(e) => set('activeTagPrompt', e.target.value)}
+              className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
+            >
+              {draft.tagPrompts.map((p, i) => (
+                <option key={i} value={p.name}>
+                  {p.name || '(unnamed)'}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={addTagPrompt}
+              className="rounded-md border border-ink-200 px-3 py-2 text-sm hover:bg-ink-100"
+            >
+              + Add
+            </button>
+            <button
+              type="button"
+              onClick={deleteTagPrompt}
+              disabled={draft.tagPrompts.length <= 1}
+              className="rounded-md border border-ink-200 px-3 py-2 text-sm text-ink-700 hover:bg-ink-100 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+          <input
+            type="text"
+            value={activePrompt?.name ?? ''}
+            onChange={(e) => renameActivePrompt(e.target.value)}
+            placeholder="Prompt name (e.g. Close-up, Wide shot)"
+            className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
+          <textarea
+            value={activePrompt?.text ?? ''}
+            rows={4}
+            onChange={(e) => setActivePromptText(e.target.value)}
+            className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
+        </div>
         <div className="grid grid-cols-2 gap-3 mb-4">
           <NumField
             label="Tagging temperature"
@@ -460,15 +585,15 @@ export function ImageSettingsPanel(): React.JSX.Element {
         </div>
       </div>
 
-      {editorOpen && (
+      {editorName !== null && (
         <WorkflowEditor
           workspace={workspace}
-          initialName={draft.workflow}
-          onClose={() => setEditorOpen(false)}
+          initialName={editorName}
+          onClose={() => setEditorName(null)}
           onSaved={async (name) => {
             await reloadWorkflows()
             set('workflow', name)
-            setEditorOpen(false)
+            setEditorName(null)
           }}
         />
       )}

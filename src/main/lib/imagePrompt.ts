@@ -25,36 +25,37 @@ export function buildTagEntries(opts: {
   image: ImageSettings
   characters: TavernV2Data[]
   passageText: string
+  /** Resolved text of the active tag prompt (the "scene instruction"). */
+  tagInstruction: string
 }): PromptEntry[] {
-  const { image, characters, passageText } = opts
+  const { image, characters, passageText, tagInstruction } = opts
   const parts: string[] = []
 
   // Character reference comes FIRST — before the task and the story passage — so the model
-  // knows what each character looks like before it reads the scene. Appearance/description
-  // are the source of truth for physical traits; the passage only supplies pose/action.
+  // knows what each character looks like before it reads the scene. Its source (description
+  // prose vs the compact appearance-tag list) is chosen in settings; personality is omitted to
+  // keep the reference focused on appearance.
   const blocks = characters
-    .map((c, i) => {
-      const lines: string[] = []
-      if (c.name) lines.push(`Name: ${c.name}`)
-      const appearance = readCharacterImageTags(c).appearance_tags
-      if (appearance) lines.push(`Appearance tags (reproduce these exactly): ${appearance}`)
-      if (c.description) lines.push(`Description: ${c.description}`)
-      if (c.personality) lines.push(`Personality: ${c.personality}`)
-      if (lines.length === 0) return ''
-      const label = characters.length > 1 ? `Character ${i + 1}` : 'Character'
-      return `${label}:\n${lines.join('\n')}`
+    .map((c) => {
+      const name = c.name || 'Character'
+      if (image.appearanceSource === 'appearance') {
+        const appearance = readCharacterImageTags(c).appearance_tags
+        return appearance ? `${name}: ${appearance}` : ''
+      }
+      return c.description ? `${name}:\n${c.description}` : ''
     })
     .filter((b) => b.length > 0)
 
   if (blocks.length > 0) {
+    const joiner = image.appearanceSource === 'appearance' ? '\n' : '\n\n'
     parts.push(
       'CHARACTER REFERENCE — derive each character’s body, skin, hair, and eyes from these ' +
         'details (do NOT invent appearance):\n\n' +
-        blocks.join('\n\n')
+        blocks.join(joiner)
     )
   }
 
-  parts.push(`TASK: ${image.tagInstruction}`)
+  parts.push(`TASK: ${tagInstruction}`)
   parts.push(`CURRENT SCENE (the most recent passage of the story):\n${passageText.trim()}`)
   parts.push('Respond with ONLY the comma-separated list. Your entire reply must be the list.')
 

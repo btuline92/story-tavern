@@ -28,6 +28,11 @@ export interface TagModelOverride {
   model: string
 }
 
+export interface TagPrompt {
+  name: string
+  text: string
+}
+
 export interface ImageSettings {
   enabled: boolean
   autoAfterContinue: boolean
@@ -47,8 +52,10 @@ export interface ImageSettings {
   customPlaceholders: CustomPlaceholder[]
   promptPrefix: string
   negativePrompt: string
+  appearanceSource: 'description' | 'appearance'
   tagSystemPrompt: string
-  tagInstruction: string
+  tagPrompts: TagPrompt[]
+  activeTagPrompt: string
   tagTemperature: number
   tagDisableThinking: boolean
   tagModelOverride: TagModelOverride

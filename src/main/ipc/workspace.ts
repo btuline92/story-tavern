@@ -36,6 +36,11 @@ export interface TagModelOverride {
   model: string
 }
 
+export interface TagPrompt {
+  name: string
+  text: string
+}
+
 export interface ImageSettings {
   /** Master switch — when off, no image UI/actions are active. */
   enabled: boolean
@@ -61,9 +66,13 @@ export interface ImageSettings {
   // Prompt construction
   promptPrefix: string
   negativePrompt: string
+  /** Where the tagger's per-character reference comes from. */
+  appearanceSource: 'description' | 'appearance'
   // LLM tag generation
   tagSystemPrompt: string
-  tagInstruction: string
+  /** Named "scene instruction" prompts (e.g. camera perspectives); one is active at a time. */
+  tagPrompts: TagPrompt[]
+  activeTagPrompt: string
   tagTemperature: number
   /** Suppress extended thinking/reasoning for the tagging call (faster). When false,
    *  tagging inherits the workspace generation reasoning_level. */
@@ -140,6 +149,38 @@ Order: scene/background tags, total gender count, one space-joined phrase per ch
 
 Do not use BREAK. Do not put commas inside a character phrase. Do not include quality/style tags — those come from the prefix.`
 
+const MALE_POV_TAG_INSTRUCTION = `Convert the current scene from the recent conversation into a Stable Diffusion prompt showing {{user}}'s first-person point of view. The camera IS {{user}}'s eyes — the image shows what {{user}} sees looking at {{char}}.
+
+Begin with background/location tags (setting, lighting, atmosphere), then the POV tags "pov" and "male pov", then a gender count tag ("1girl," or "1boy," for {{char}}).
+
+For {{char}}, output tags covering:
+- Pose and body angle relative to the camera (facing viewer, straddling viewer, cowgirl position, on knees, leaning forward, on top, kneeling, on all fours, etc.)
+- Gaze and expression ("looking at viewer", "eye contact", "smiling", "blushing", "open mouth", "tongue out", "half-closed eyes", "shy expression", etc.)
+- Current clothing state (clothed sex, topless, nude, clothes lifted, undressed, panties aside, etc.)
+- Any body part of {{char}} that is prominent in frame (breasts, hips, thighs, cleavage, etc.)
+- Mouth/hand position and physical interaction with {{user}}'s visible body parts (holding {{user}}'s penis, gripping {{user}}'s wrist, hands on {{user}}'s chest, mouth on penis, etc.)
+- Character physical traits, must include body type, hair, and eyes from character description
+
+For {{user}}, ONLY include the body parts visible in a first-person shot from his own eyes: hands, forearms, arms, chest if looking down, penis, thighs, feet. Describe what {{user}}'s hands are doing (holding, gripping, touching {{char}}, holding {{char}}'s hair/hips/breasts, spreading, etc.). Do NOT describe {{user}}'s face, hair, or full body — those are outside the field of view.
+
+Extract the literal visual action from the last message. Focus on pose, clothing state, gaze, and physical interaction happening in THIS exact moment as seen by {{user}}.
+
+End with a trailing comma.
+
+CRITICAL:
+- Include "pov" and "male pov". This is a first-person shot.
+- Do NOT describe {{user}}'s face, hair, or full body — the camera IS his eyes.
+- Do NOT include {{char}}'s physical traits (hair color, eye color, body type, skin tone, species). Those come from the character appearance prefix.
+- Keep total tags short.
+Rules:
+1. Include the tags "pov" and "male pov" near the start of the character section.
+2. {{char}} (and any other characters present) face the camera or are the primary visual subject. Their pose, expression, clothing state, and action are the focus.
+3. Only the parts of {{user}}'s body visible from his own perspective appear in frame — hands, arms, penis, feet if looking down, etc. Do NOT describe {{user}}'s full body or face.
+4. Do NOT include physical traits for {{char}} (hair color, eye color, species, body features, etc.). Those are supplied by the character appearance prefix.
+5. Extract the literal visual action from the last message. Focus on how {{char}} interacts with {{user}} from {{user}}'s viewpoint.
+6. Include a gender count tag (usually 1girl or 1boy for {{char}}).
+7. End with a trailing comma.`
+
 const DEFAULT_NEGATIVE_PROMPT =
   'lowres, bad anatomy, bad hands, text, error, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
 
@@ -162,8 +203,13 @@ const DEFAULT_IMAGE: ImageSettings = {
   customPlaceholders: [],
   promptPrefix: 'best quality, absurdres, aesthetic,',
   negativePrompt: DEFAULT_NEGATIVE_PROMPT,
+  appearanceSource: 'description',
   tagSystemPrompt: DEFAULT_TAG_SYSTEM_PROMPT,
-  tagInstruction: DEFAULT_TAG_INSTRUCTION,
+  tagPrompts: [
+    { name: 'Multi Character 3rd Person', text: DEFAULT_TAG_INSTRUCTION },
+    { name: 'Male POV', text: MALE_POV_TAG_INSTRUCTION }
+  ],
+  activeTagPrompt: 'Multi Character 3rd Person',
   tagTemperature: 0.3,
   tagDisableThinking: true,
   tagModelOverride: { enabled: false, provider: 'anthropic', model: '' }
@@ -183,11 +229,38 @@ function mergeOpenRouter(raw: unknown): OpenRouterSettings {
 }
 
 function mergeImage(raw: unknown): ImageSettings {
-  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<ImageSettings>
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<ImageSettings> & {
+    /** Back-compat: superseded by tagPrompts/activeTagPrompt. */
+    tagInstruction?: string
+  }
   const rawOverride = (r.tagModelOverride ?? {}) as Partial<TagModelOverride>
+
+  // Tag prompts: keep valid entries; otherwise migrate the legacy single tagInstruction.
+  let tagPrompts = Array.isArray(r.tagPrompts)
+    ? r.tagPrompts.filter(
+        (p): p is TagPrompt => !!p && typeof p.name === 'string' && typeof p.text === 'string'
+      )
+    : []
+  if (tagPrompts.length === 0) {
+    tagPrompts = [
+      {
+        name: 'Multi Character 3rd Person',
+        text: typeof r.tagInstruction === 'string' ? r.tagInstruction : DEFAULT_TAG_INSTRUCTION
+      },
+      { name: 'Male POV', text: MALE_POV_TAG_INSTRUCTION }
+    ]
+  }
+  const activeTagPrompt =
+    typeof r.activeTagPrompt === 'string' && tagPrompts.some((p) => p.name === r.activeTagPrompt)
+      ? r.activeTagPrompt
+      : tagPrompts[0].name
+
   return {
     ...DEFAULT_IMAGE,
     ...r,
+    appearanceSource: r.appearanceSource === 'appearance' ? 'appearance' : 'description',
+    tagPrompts,
+    activeTagPrompt,
     customPlaceholders: Array.isArray(r.customPlaceholders)
       ? r.customPlaceholders.filter(
           (p): p is CustomPlaceholder =>

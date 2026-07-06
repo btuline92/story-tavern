@@ -94,7 +94,7 @@ export function WorkflowEditor({
         <div className="flex flex-1 flex-col gap-3 overflow-hidden p-5">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
-              Filename (change to save a copy)
+              Filename
             </label>
             <input
               type="text"
