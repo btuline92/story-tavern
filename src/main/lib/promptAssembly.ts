@@ -18,6 +18,8 @@ export interface AssemblyContext {
   /** When set (one-click "write to length"), the model is told the chapter's word target
    *  and nudged to start wrapping up as it approaches it. */
   targetWords?: number
+  /** Active plugin decorators — extra system-prompt emphasis appended near the end. */
+  plugins?: string[]
 }
 
 /** Inline image markers are stored in the chapter but must not be fed back to the LLM. */
@@ -183,6 +185,12 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
   }
   const guidance = lengthGuidance(ctx)
   if (guidance) entries.push(guidance)
+  // Plugins: reusable system-prompt decorators, appended at the end of the system context for
+  // recency emphasis. Interpolated like preset blocks so {{char}} etc. resolve.
+  for (const plugin of ctx.plugins ?? []) {
+    const content = interpolate(plugin, ctx).trim()
+    if (content) entries.push({ role: 'system', content })
+  }
   entries.push(continueNudge(ctx))
   return entries
 }

@@ -12,6 +12,7 @@ import { registerGenerationIpc } from './ipc/generation'
 import { registerLogsIpc } from './ipc/logs'
 import { registerComfyIpc } from './ipc/comfy'
 import { registerImageIpc } from './ipc/image'
+import { registerPluginsIpc } from './ipc/plugins'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -59,6 +60,7 @@ app.whenReady().then(() => {
   registerLogsIpc()
   registerComfyIpc()
   registerImageIpc()
+  registerPluginsIpc()
 
   createWindow()
 

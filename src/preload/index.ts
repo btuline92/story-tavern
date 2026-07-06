@@ -127,12 +127,21 @@ export interface Preset {
   updated_at: string
 }
 
+export interface Plugin {
+  id: string
+  name: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
 export interface StoryMeta {
   id: string
   slug: string
   title: string
   character_ids: string[]
   preset_id: string | null
+  plugin_ids: string[]
   premise: string
   created_at: string
   updated_at: string
@@ -257,6 +266,17 @@ const api = {
     export: (workspace: string, id: string): Promise<string | null> =>
       ipcRenderer.invoke('presets:export', workspace, id)
   },
+  plugins: {
+    list: (workspace: string): Promise<Plugin[]> => ipcRenderer.invoke('plugins:list', workspace),
+    get: (workspace: string, id: string): Promise<Plugin | null> =>
+      ipcRenderer.invoke('plugins:get', workspace, id),
+    create: (workspace: string, name: string): Promise<Plugin> =>
+      ipcRenderer.invoke('plugins:create', workspace, name),
+    save: (workspace: string, plugin: Plugin): Promise<Plugin> =>
+      ipcRenderer.invoke('plugins:save', workspace, plugin),
+    delete: (workspace: string, id: string): Promise<boolean> =>
+      ipcRenderer.invoke('plugins:delete', workspace, id)
+  },
   stories: {
     list: (workspace: string): Promise<StoryMeta[]> =>
       ipcRenderer.invoke('stories:list', workspace),
@@ -268,6 +288,7 @@ const api = {
         title: string
         characterIds: string[]
         presetId: string | null
+        pluginIds?: string[]
         premise?: string
       }
     ): Promise<StoryWithChapters> => ipcRenderer.invoke('stories:create', workspace, input),
@@ -278,6 +299,7 @@ const api = {
         title?: string
         characterIds?: string[]
         presetId?: string | null
+        pluginIds?: string[]
         premise?: string
         notes?: string
       }

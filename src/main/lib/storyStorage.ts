@@ -10,6 +10,7 @@ export interface StoryMeta {
   title: string
   character_ids: string[]
   preset_id: string | null
+  plugin_ids: string[]
   premise: string
   created_at: string
   updated_at: string
@@ -38,6 +39,7 @@ function withDefaults(
     // Back-compat: stories created before presets stored `prompt_id`. Reuse it as preset_id
     // since legacy prompts are migrated to presets with their original id.
     preset_id: meta.preset_id ?? meta.prompt_id ?? null,
+    plugin_ids: Array.isArray(meta.plugin_ids) ? meta.plugin_ids : [],
     premise: typeof meta.premise === 'string' ? meta.premise : '',
     created_at: meta.created_at ?? new Date().toISOString(),
     updated_at: meta.updated_at ?? new Date().toISOString(),
@@ -213,6 +215,7 @@ export interface CreateStoryInput {
   title: string
   characterIds: string[]
   presetId: string | null
+  pluginIds?: string[]
   premise?: string
 }
 
@@ -229,6 +232,7 @@ export async function createStory(
     title: input.title.trim() || 'Untitled story',
     character_ids: input.characterIds,
     preset_id: input.presetId,
+    plugin_ids: input.pluginIds ?? [],
     premise: input.premise ?? '',
     created_at: now,
     updated_at: now
@@ -252,6 +256,7 @@ export interface StoryMetaUpdate {
   title?: string
   characterIds?: string[]
   presetId?: string | null
+  pluginIds?: string[]
   premise?: string
   notes?: string
 }
@@ -279,6 +284,7 @@ export async function updateStoryMeta(
     title: nextTitle,
     character_ids: patch.characterIds !== undefined ? patch.characterIds : current.character_ids,
     preset_id: patch.presetId !== undefined ? patch.presetId : current.preset_id,
+    plugin_ids: patch.pluginIds !== undefined ? patch.pluginIds : current.plugin_ids,
     premise: patch.premise !== undefined ? patch.premise : current.premise,
     notes: patch.notes !== undefined ? patch.notes : current.notes,
     updated_at: new Date().toISOString()

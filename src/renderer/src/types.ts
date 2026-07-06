@@ -66,6 +66,14 @@ export interface Preset {
   updated_at: string
 }
 
+export interface Plugin {
+  id: string
+  name: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
 export interface GenerationSettings {
   max_tokens: number
   temperature: number
@@ -159,6 +167,7 @@ export interface StoryMeta {
   title: string
   character_ids: string[]
   preset_id: string | null
+  plugin_ids: string[]
   premise: string
   created_at: string
   updated_at: string

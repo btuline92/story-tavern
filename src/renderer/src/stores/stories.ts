@@ -71,7 +71,13 @@ interface StoriesState {
   closeActive: () => void
   create: (
     workspace: string,
-    input: { title: string; characterIds: string[]; presetId: string | null; premise?: string }
+    input: {
+      title: string
+      characterIds: string[]
+      presetId: string | null
+      pluginIds?: string[]
+      premise?: string
+    }
   ) => Promise<StoryWithChapters>
   updateMeta: (
     workspace: string,
@@ -80,6 +86,7 @@ interface StoriesState {
       title?: string
       characterIds?: string[]
       presetId?: string | null
+      pluginIds?: string[]
       premise?: string
       notes?: string
     }

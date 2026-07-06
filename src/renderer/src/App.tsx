@@ -7,15 +7,17 @@ import { CharacterList } from './components/CharacterList'
 import { CharacterDetail } from './components/CharacterDetail'
 import { Settings } from './components/Settings'
 import { PresetsView } from './components/PresetsView'
+import { PluginsView } from './components/PluginsView'
 import { StoriesView } from './components/StoriesView'
 import { LogsView } from './components/LogsView'
 
-type View = 'stories' | 'characters' | 'presets' | 'logs' | 'settings'
+type View = 'stories' | 'characters' | 'presets' | 'plugins' | 'logs' | 'settings'
 
 const TABS: { id: View; label: string }[] = [
   { id: 'stories', label: 'Stories' },
   { id: 'characters', label: 'Characters' },
   { id: 'presets', label: 'Presets' },
+  { id: 'plugins', label: 'Plugins' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' }
 ]
@@ -138,6 +140,10 @@ function App(): React.JSX.Element {
       ) : view === 'presets' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">
           <PresetsView />
+        </main>
+      ) : view === 'plugins' ? (
+        <main className="row-start-2 col-span-2 overflow-hidden">
+          <PluginsView />
         </main>
       ) : view === 'stories' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">

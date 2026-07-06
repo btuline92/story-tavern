@@ -8,6 +8,7 @@ import { assemble } from '../lib/promptAssembly'
 import { streamContinue } from '../lib/streamGeneration'
 import { logApiCall } from '../lib/apiLogger'
 import { readCharactersData } from '../lib/characterData'
+import { getPluginsByIds } from '../lib/pluginStore'
 import type { ProviderId } from './providers'
 
 const activeStreams = new Map<string, AbortController>()
@@ -37,6 +38,7 @@ export function registerGenerationIpc(): void {
       const preset = (presetId ? await getPreset(workspace, presetId) : null) ?? defaultPreset()
 
       const characters = await readCharactersData(workspace, story.meta.character_ids)
+      const activePlugins = await getPluginsByIds(workspace, story.meta.plugin_ids)
 
       const entries = assemble(preset, {
         characters,
@@ -50,7 +52,8 @@ export function registerGenerationIpc(): void {
         })),
         activeChapterNumber: chapterNumber,
         userNote,
-        targetWords
+        targetWords,
+        plugins: activePlugins.map((p) => p.content)
       })
 
       const streamId = ulid()
