@@ -58,7 +58,7 @@ export function CharacterList(): React.JSX.Element {
         <button
           type="button"
           onClick={() => importCard(workspace)}
-          className="flex-1 rounded-md border border-ink-200 bg-white px-3 py-2 text-sm font-medium text-ink-900 hover:bg-ink-100 transition"
+          className="flex-1 rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm font-medium text-ink-900 hover:bg-ink-100 transition"
         >
           Import…
         </button>

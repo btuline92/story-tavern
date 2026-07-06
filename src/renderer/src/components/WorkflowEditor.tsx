@@ -79,7 +79,7 @@ export function WorkflowEditor({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-      <div className="flex h-full max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-ink-200 bg-white shadow-xl">
+      <div className="flex h-full max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-ink-200 bg-surface shadow-xl">
         <div className="flex items-center justify-between border-b border-ink-200 px-5 py-3">
           <div className="font-medium text-ink-900">Edit ComfyUI workflow</div>
           <button

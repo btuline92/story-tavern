@@ -59,7 +59,7 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
   }
 
   return (
-    <div className="rounded-lg border border-ink-200 bg-white p-4 mb-3">
+    <div className="rounded-lg border border-ink-200 bg-surface p-4 mb-3">
       <div className="flex items-center justify-between mb-3">
         <div>
           <div className="font-medium text-ink-900">{name}</div>
@@ -137,7 +137,7 @@ export function Settings(): React.JSX.Element {
     <div className="h-full overflow-y-auto p-8">
       <h2 className="text-2xl font-semibold text-ink-900 mb-6">Settings</h2>
 
-      <div className="rounded-lg border border-ink-200 bg-white p-4 mb-6">
+      <div className="rounded-lg border border-ink-200 bg-surface p-4 mb-6">
         <div className="font-medium text-ink-900 mb-1">Workspace</div>
         <div className="text-sm text-ink-700 mb-3 break-all">{workspace}</div>
         <button
@@ -154,7 +154,7 @@ export function Settings(): React.JSX.Element {
         <select
           value={settings.selectedProvider}
           onChange={(e) => setProvider(workspace, e.target.value as ProviderId)}
-          className="rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
+          className="rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
         >
           {PROVIDERS.map((p) => (
             <option key={p.id} value={p.id}>

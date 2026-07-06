@@ -264,7 +264,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
   }
 
   return (
-    <div className="rounded-lg border border-ink-200 bg-white p-4 mb-6">
+    <div className="rounded-lg border border-ink-200 bg-surface p-4 mb-6">
       <div className="flex items-center justify-between mb-4">
         <div className="font-medium text-ink-900">Images (ComfyUI)</div>
         <div className="flex gap-2">
@@ -338,7 +338,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
           <select
             value={draft.workflow}
             onChange={(e) => set('workflow', e.target.value)}
-            className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
+            className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
           >
             {workflows.length === 0 && <option value={draft.workflow}>{draft.workflow}</option>}
             {workflows.map((w) => (
@@ -461,7 +461,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
             onChange={(e) =>
               set('appearanceSource', e.target.value as 'description' | 'appearance')
             }
-            className="rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
+            className="rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
           >
             <option value="description">Character description</option>
             <option value="appearance">Appearance tags</option>
@@ -488,7 +488,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
             <select
               value={activePrompt?.name ?? ''}
               onChange={(e) => set('activeTagPrompt', e.target.value)}
-              className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
+              className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
             >
               {draft.tagPrompts.map((p, i) => (
                 <option key={i} value={p.name}>
@@ -563,7 +563,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
                     provider: e.target.value as ProviderId
                   })
                 }
-                className="rounded-md border border-ink-200 px-2 py-2 text-sm bg-white"
+                className="rounded-md border border-ink-200 px-2 py-2 text-sm bg-surface"
               >
                 {PROVIDERS.map((p) => (
                   <option key={p.id} value={p.id}>

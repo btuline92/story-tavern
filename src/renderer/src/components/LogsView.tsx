@@ -98,7 +98,7 @@ function LogRow({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
                 Request ({entry.request_body_size.toLocaleString()} chars)
                 {loadingFull && !full && <span className="ml-2 italic">loading full…</span>}
               </div>
-              <pre className="whitespace-pre-wrap break-words text-ink-900 bg-white border border-ink-200 rounded p-2 max-h-96 overflow-auto">
+              <pre className="whitespace-pre-wrap break-words text-ink-900 bg-surface border border-ink-200 rounded p-2 max-h-96 overflow-auto">
                 {pretty(reqBody)}
               </pre>
             </div>
@@ -109,7 +109,7 @@ function LogRow({ entry }: { entry: ApiLogEntry }): React.JSX.Element {
                 Response ({entry.response_body_size.toLocaleString()} chars)
                 {loadingFull && !full && <span className="ml-2 italic">loading full…</span>}
               </div>
-              <pre className="whitespace-pre-wrap break-words text-ink-900 bg-white border border-ink-200 rounded p-2 max-h-96 overflow-auto">
+              <pre className="whitespace-pre-wrap break-words text-ink-900 bg-surface border border-ink-200 rounded p-2 max-h-96 overflow-auto">
                 {pretty(resBody)}
               </pre>
             </div>
@@ -157,13 +157,13 @@ export function LogsView(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-ink-200 bg-white px-6 py-3">
+      <div className="flex items-center gap-3 border-b border-ink-200 bg-surface px-6 py-3">
         <h2 className="text-lg font-semibold text-ink-900">API logs</h2>
         <div className="flex-1" />
         <select
           value={providerFilter}
           onChange={(e) => setProviderFilter(e.target.value)}
-          className="rounded-md border border-ink-200 bg-white px-2 py-1 text-sm"
+          className="rounded-md border border-ink-200 bg-surface px-2 py-1 text-sm"
         >
           <option value="">All providers</option>
           <option value="anthropic">anthropic</option>
@@ -175,7 +175,7 @@ export function LogsView(): React.JSX.Element {
         <select
           value={kindFilter}
           onChange={(e) => setKindFilter(e.target.value)}
-          className="rounded-md border border-ink-200 bg-white px-2 py-1 text-sm"
+          className="rounded-md border border-ink-200 bg-surface px-2 py-1 text-sm"
         >
           <option value="">All kinds</option>
           <option value="test">test</option>

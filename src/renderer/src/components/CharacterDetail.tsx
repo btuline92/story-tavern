@@ -143,7 +143,7 @@ function TagsEditor({
       <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
         Tags
       </label>
-      <div className="rounded-md border border-ink-200 bg-white p-2 flex flex-wrap gap-1.5">
+      <div className="rounded-md border border-ink-200 bg-surface p-2 flex flex-wrap gap-1.5">
         {value.map((tag) => (
           <span
             key={tag}
@@ -347,7 +347,7 @@ export function CharacterDetail(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-200 bg-white px-6 py-3">
+      <div className="flex items-center justify-between border-b border-ink-200 bg-surface px-6 py-3">
         <div className="text-xs text-ink-700 truncate">
           {character.slug}.md {dirty && <span className="ml-2 text-accent-500">• unsaved</span>}
         </div>

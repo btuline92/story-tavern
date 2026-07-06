@@ -109,7 +109,7 @@ function App(): React.JSX.Element {
 
   return (
     <div className="grid h-full grid-cols-[16rem_1fr] grid-rows-[3rem_1fr]">
-      <header className="col-span-2 row-start-1 flex items-center justify-between border-b border-ink-200 bg-white px-4">
+      <header className="col-span-2 row-start-1 flex items-center justify-between border-b border-ink-200 bg-surface px-4">
         <div className="font-semibold text-ink-900">Story Tavern</div>
         <nav className="flex gap-1">
           {TABS.map((t) => (

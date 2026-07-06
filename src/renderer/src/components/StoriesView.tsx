@@ -261,7 +261,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
           <button
             type="button"
             onClick={() => addChapter(workspace)}
-            className="w-full rounded-md border border-ink-200 bg-white px-2 py-1.5 text-xs hover:bg-ink-100"
+            className="w-full rounded-md border border-ink-200 bg-surface px-2 py-1.5 text-xs hover:bg-ink-100"
           >
             + Chapter
           </button>
@@ -296,7 +296,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
       </aside>
 
       <main className="flex h-full flex-1 flex-col min-w-0 min-h-0">
-        <div className="flex items-center gap-3 border-b border-ink-200 bg-white px-6 py-3">
+        <div className="flex items-center gap-3 border-b border-ink-200 bg-surface px-6 py-3">
           <input
             type="text"
             value={titleDraft}
@@ -332,7 +332,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               disabled={busy}
               rows={3}
               placeholder="A few sentences sketching what should happen here. Leave empty to skip."
-              className="w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-100"
+              className="w-full rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-100"
             />
           </div>
         )}
@@ -373,7 +373,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               {generating && (
                 <div
                   ref={streamScrollRef}
-                  className="absolute inset-x-6 bottom-6 top-1/2 overflow-y-auto rounded-lg border border-accent-500 bg-white shadow-lg p-4 text-base leading-relaxed font-serif"
+                  className="absolute inset-x-6 bottom-6 top-1/2 overflow-y-auto rounded-lg border border-accent-500 bg-surface shadow-lg p-4 text-base leading-relaxed font-serif"
                 >
                   <div className="text-xs uppercase tracking-wide text-accent-600 font-sans mb-2 flex items-center gap-2">
                     <span className="inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse" />
@@ -408,7 +408,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
           )}
         </div>
 
-        <div className="border-t border-ink-200 bg-white px-6 py-3 flex items-center gap-3">
+        <div className="border-t border-ink-200 bg-surface px-6 py-3 flex items-center gap-3">
           <input
             type="text"
             value={userNote}
@@ -437,7 +437,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => stopOneClick()}
-                className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
+                className="rounded-md border border-red-300 bg-surface px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
               >
                 Stop
               </button>
@@ -455,7 +455,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               <button
                 type="button"
                 onClick={onCancel}
-                className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
+                className="rounded-md border border-red-300 bg-surface px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
               >
                 Cancel
               </button>
@@ -475,7 +475,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => cancelImage()}
-                className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
+                className="rounded-md border border-red-300 bg-surface px-4 py-2 text-sm text-red-700 font-medium hover:bg-red-50"
               >
                 Cancel
               </button>
@@ -546,7 +546,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
       </main>
 
       {detailsOpen && (
-        <aside className="w-80 shrink-0 border-l border-ink-200 bg-white overflow-hidden">
+        <aside className="w-80 shrink-0 border-l border-ink-200 bg-surface overflow-hidden">
           <StoryDetailsPanel workspace={workspace} />
         </aside>
       )}
@@ -568,7 +568,7 @@ export function StoriesView(): React.JSX.Element {
   if (active) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex items-center gap-3 border-b border-ink-200 bg-white px-4 py-2">
+        <div className="flex items-center gap-3 border-b border-ink-200 bg-surface px-4 py-2">
           <button
             type="button"
             onClick={closeActive}
@@ -593,7 +593,7 @@ export function StoriesView(): React.JSX.Element {
                     story file may be corrupted, or a recent change to the schema is incompatible
                     with the saved data.
                   </p>
-                  <pre className="text-xs font-mono bg-white border border-red-200 rounded p-3 overflow-x-auto mb-4 text-red-900">
+                  <pre className="text-xs font-mono bg-surface border border-red-200 rounded p-3 overflow-x-auto mb-4 text-red-900">
                     {error.message}
                   </pre>
                   <div className="text-xs text-red-800 mb-4">
@@ -607,7 +607,7 @@ export function StoriesView(): React.JSX.Element {
                         closeActive()
                         reset()
                       }}
-                      className="rounded-md border border-ink-200 bg-white px-3 py-1.5 text-sm hover:bg-ink-100"
+                      className="rounded-md border border-ink-200 bg-surface px-3 py-1.5 text-sm hover:bg-ink-100"
                     >
                       ← Back to list
                     </button>
@@ -663,7 +663,7 @@ export function StoriesView(): React.JSX.Element {
                 <button
                   type="button"
                   onClick={() => open(workspace, s.id)}
-                  className={`block w-full text-left rounded-lg border bg-white p-4 pr-10 hover:bg-ink-50 transition ${
+                  className={`block w-full text-left rounded-lg border bg-surface p-4 pr-10 hover:bg-ink-50 transition ${
                     s.id === selectedId ? 'border-accent-500' : 'border-ink-200'
                   }`}
                 >

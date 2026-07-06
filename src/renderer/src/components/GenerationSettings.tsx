@@ -90,7 +90,7 @@ export function GenerationSettingsPanel(): React.JSX.Element {
   }
 
   return (
-    <div className="rounded-lg border border-ink-200 bg-white p-4 mb-6">
+    <div className="rounded-lg border border-ink-200 bg-surface p-4 mb-6">
       <div className="flex items-center justify-between mb-4">
         <div className="font-medium text-ink-900">Generation</div>
         <div className="flex gap-2">
@@ -186,7 +186,7 @@ export function GenerationSettingsPanel(): React.JSX.Element {
         <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
           Stop sequences
         </label>
-        <div className="rounded-md border border-ink-200 bg-white p-2 flex flex-wrap gap-1.5">
+        <div className="rounded-md border border-ink-200 bg-surface p-2 flex flex-wrap gap-1.5">
           {draft.stop_sequences.map((s, i) => (
             <span
               key={`${s}-${i}`}
@@ -232,7 +232,7 @@ export function GenerationSettingsPanel(): React.JSX.Element {
         <select
           value={draft.reasoning_level}
           onChange={(e) => set('reasoning_level', e.target.value as ReasoningLevel)}
-          className="rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
+          className="rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
         >
           <option value="off">off</option>
           <option value="low">low</option>

@@ -118,7 +118,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-200 bg-white px-4 py-3">
+      <div className="flex items-center justify-between border-b border-ink-200 bg-surface px-4 py-3">
         <div className="text-sm font-semibold text-ink-900">Story setup</div>
         <div className="text-xs text-ink-700">
           {saving ? 'saving…' : dirty ? 'unsaved' : 'saved'}
@@ -163,7 +163,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
             <select
               value={draft.presetId ?? ''}
               onChange={(e) => setField('presetId', e.target.value || null)}
-              className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm bg-white"
+              className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
             >
               <option value="">— Workspace default —</option>
               {presets.map((p) => (

@@ -58,7 +58,7 @@ export function OpenRouterRouting(): React.JSX.Element {
   }
 
   return (
-    <div className="rounded-lg border border-ink-200 bg-white p-4 mb-6">
+    <div className="rounded-lg border border-ink-200 bg-surface p-4 mb-6">
       <div className="font-medium text-ink-900 mb-1">OpenRouter routing</div>
       <div className="text-xs text-ink-700 mb-4">
         Applies whenever OpenRouter is used — for both story generation and image tagging.

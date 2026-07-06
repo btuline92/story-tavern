@@ -101,7 +101,7 @@ function BlockRow({
             <select
               value={block.role}
               onChange={(e) => onChange({ role: e.target.value as BlockRole })}
-              className="rounded-md border border-ink-200 px-2 py-1 text-sm bg-white"
+              className="rounded-md border border-ink-200 px-2 py-1 text-sm bg-surface"
             >
               <option value="system">system</option>
               <option value="user">user</option>
@@ -214,7 +214,7 @@ function PresetEditor({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-ink-200 bg-white px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-ink-200 bg-surface px-4 py-3">
         <input
           type="text"
           value={draft.name}
@@ -325,7 +325,7 @@ export function PresetsView(): React.JSX.Element {
           <button
             type="button"
             onClick={() => importPreset(workspace)}
-            className="flex-1 rounded-md border border-ink-200 bg-white px-3 py-2 text-sm font-medium hover:bg-ink-100"
+            className="flex-1 rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm font-medium hover:bg-ink-100"
           >
             Import…
           </button>

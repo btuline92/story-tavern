@@ -65,7 +65,7 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-      <div className="w-[46rem] max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl border border-ink-200 p-6">
+      <div className="w-[46rem] max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-lg bg-surface shadow-xl border border-ink-200 p-6">
         <h3 className="text-xl font-semibold text-ink-900 mb-4">Start a new story</h3>
 
         <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
@@ -97,7 +97,7 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
         <select
           value={presetId}
           onChange={(e) => setPresetId(e.target.value)}
-          className="w-full rounded-md border border-ink-200 px-3 py-2 mb-4 bg-white"
+          className="w-full rounded-md border border-ink-200 px-3 py-2 mb-4 bg-surface"
         >
           <option value="">— Workspace default —</option>
           {presets.map((p) => (
