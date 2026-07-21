@@ -168,6 +168,7 @@ export type ApiLogKind =
   | 'list-models'
   | 'continue'
   | 'continue-stream'
+  | 'plan-beats'
   | 'image-tags'
   | 'image-generate'
 
@@ -331,7 +332,9 @@ const api = {
       storyId: string,
       chapterNumber: number,
       userNote?: string,
-      targetWords?: number
+      beat?: string,
+      beatIndex?: number,
+      beatTotal?: number
     ): Promise<{ streamId: string } | { error: string }> =>
       ipcRenderer.invoke(
         'generation:continue-stream',
@@ -339,8 +342,16 @@ const api = {
         storyId,
         chapterNumber,
         userNote,
-        targetWords
+        beat,
+        beatIndex,
+        beatTotal
       ),
+    planBeats: (
+      workspace: string,
+      storyId: string,
+      chapterNumber: number
+    ): Promise<{ beats: string[] } | { error: string }> =>
+      ipcRenderer.invoke('generation:plan-beats', workspace, storyId, chapterNumber),
     cancel: (streamId: string): Promise<boolean> =>
       ipcRenderer.invoke('generation:cancel', streamId),
     onDelta: (handler: (streamId: string, delta: string) => void): (() => void) =>

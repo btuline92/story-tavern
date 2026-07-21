@@ -14,15 +14,7 @@ function imageMarker(relPath: string, positive: string): string {
   return `![scene](${relPath} "${title}")`
 }
 
-/** Count prose words in a chapter, ignoring inline image markers. */
-const IMAGE_MARKER_RE = /!\[[^\]]*\]\([^)]*\)/g
-function chapterWordCount(active: StoryWithChapters | null, chapterNumber: number): number {
-  const ch = active?.chapters.find((c) => c.number === chapterNumber)
-  if (!ch) return 0
-  return (ch.content.replace(IMAGE_MARKER_RE, '').trim().match(/\S+/g) ?? []).length
-}
-
-// Resolves the in-flight one-click chunk once its generation settles (done or error).
+// Resolves the in-flight Magic Complete beat once its generation settles (done or error).
 let settleChunk: ((result: 'done' | 'error') => void) | null = null
 function settleActiveChunk(result: 'done' | 'error'): void {
   if (settleChunk) {
@@ -60,11 +52,14 @@ interface StoriesState {
   imageStatus: ImagePhase | null
   imageError: string | null
   imageGenId: string | null
-  /** One-click "write to target length" loop state. */
-  oneClickActive: boolean
-  oneClickTarget: number | null
-  oneClickChunk: number
-  /** Text of the most recently generated chunk — the one-click loop uses it for that chunk's image. */
+  /** "Magic Complete" loop state: plan the chapter outline into beats, then write each in turn. */
+  magicActive: boolean
+  /** True while the beat-planning LLM call is in flight (before any prose is written). */
+  magicPlanning: boolean
+  magicBeats: string[]
+  /** 1-based index of the beat currently being written (0 while planning). */
+  magicBeatIndex: number
+  /** Text of the most recently generated passage — the Magic loop uses it for that beat's image. */
   lastGeneratedText: string
   loadList: (workspace: string) => Promise<void>
   open: (workspace: string, id: string) => Promise<void>
@@ -99,12 +94,18 @@ interface StoriesState {
   ) => Promise<Chapter>
   addChapter: (workspace: string) => Promise<void>
   selectChapter: (chapterNumber: number) => void
-  startContinue: (workspace: string, userNote?: string, targetWords?: number) => Promise<void>
+  startContinue: (
+    workspace: string,
+    userNote?: string,
+    beat?: string,
+    beatIndex?: number,
+    beatTotal?: number
+  ) => Promise<void>
   regenerate: (workspace: string, userNote?: string) => Promise<void>
   cancelContinue: () => Promise<void>
-  /** Repeatedly Continue (one chunk + image per pass) until the chapter hits targetWords. */
-  startOneClick: (workspace: string, targetWords: number) => Promise<void>
-  stopOneClick: () => Promise<void>
+  /** Plan the chapter outline into beats, then write each beat (one passage + image) in turn. */
+  startMagicComplete: (workspace: string) => Promise<void>
+  stopMagicComplete: () => Promise<void>
   /** Generate an inline image for a passage and append its marker to the chapter. */
   generateImage: (workspace: string, chapterNumber: number, passageText: string) => Promise<void>
   /** Generate an image and return the result without inserting it (for in-place replace). */
@@ -141,9 +142,10 @@ export const useStories = create<StoriesState>((set, get) => ({
   imageStatus: null,
   imageError: null,
   imageGenId: null,
-  oneClickActive: false,
-  oneClickTarget: null,
-  oneClickChunk: 0,
+  magicActive: false,
+  magicPlanning: false,
+  magicBeats: [],
+  magicBeatIndex: 0,
   lastGeneratedText: '',
   loadList: async (workspace) => {
     set({ loading: true })
@@ -235,7 +237,7 @@ export const useStories = create<StoriesState>((set, get) => ({
       lastGen: null
     }),
 
-  startContinue: async (workspace, userNote, targetWords) => {
+  startContinue: async (workspace, userNote, beat, beatIndex, beatTotal) => {
     const current = get().active
     const chapterNumber = get().activeChapterNumber
     if (!current || chapterNumber == null) return
@@ -254,7 +256,9 @@ export const useStories = create<StoriesState>((set, get) => ({
       current.meta.id,
       chapterNumber,
       userNote,
-      targetWords
+      beat,
+      beatIndex,
+      beatTotal
     )
     if ('error' in result) {
       set({
@@ -366,57 +370,67 @@ export const useStories = create<StoriesState>((set, get) => ({
     }
   },
 
-  startOneClick: async (workspace, targetWords) => {
-    if (get().oneClickActive || get().generating || get().imageGenerating) return
+  startMagicComplete: async (workspace) => {
+    if (get().magicActive || get().generating || get().imageGenerating) return
     const cur0 = get().active
     const chapterNumber = get().activeChapterNumber
-    if (!cur0 || chapterNumber == null || !targetWords || targetWords <= 0) return
+    if (!cur0 || chapterNumber == null) return
     const storyId = cur0.meta.id
     const imageEnabled = useSettings.getState().settings?.image.enabled ?? false
     set({
-      oneClickActive: true,
-      oneClickTarget: targetWords,
-      oneClickChunk: 0,
+      magicActive: true,
+      magicPlanning: true,
+      magicBeats: [],
+      magicBeatIndex: 0,
       generationError: null,
       imageError: null
     })
-    const MAX_CHUNKS = 60 // safety cap against a runaway loop
     try {
-      for (let i = 0; i < MAX_CHUNKS; i++) {
-        if (!get().oneClickActive) break
+      // 1. Break the chapter outline into an ordered list of beats.
+      const planned = await window.api.generation.planBeats(workspace, storyId, chapterNumber)
+      if (!get().magicActive) return // stopped during planning
+      if ('error' in planned) {
+        set({ generationError: planned.error })
+        return
+      }
+      const beats = planned.beats
+      if (beats.length === 0) {
+        set({ generationError: 'No beats were produced from the outline.' })
+        return
+      }
+      set({ magicPlanning: false, magicBeats: beats })
+
+      // 2. Write each beat as its own passage (+ inline image), in order.
+      for (let i = 0; i < beats.length; i++) {
+        if (!get().magicActive) break
         const act = get().active
         // Bail if the user navigated to a different story/chapter mid-run.
         if (!act || act.meta.id !== storyId || get().activeChapterNumber !== chapterNumber) break
-        const before = chapterWordCount(act, chapterNumber)
-        if (before >= targetWords) break
-        set({ oneClickChunk: i + 1 })
+        set({ magicBeatIndex: i + 1 })
 
-        // 1. Generate one text chunk and wait for it to settle (done or error).
+        // Generate one passage for this beat and wait for it to settle (done or error).
         const settled = new Promise<'done' | 'error'>((resolve) => {
           settleChunk = resolve
         })
-        await get().startContinue(workspace, undefined, targetWords)
+        await get().startContinue(workspace, undefined, beats[i], i + 1, beats.length)
         if (get().generationStreamId == null) settleActiveChunk('error') // failed to start
         const outcome = await settled
-        if (outcome === 'error' || !get().oneClickActive) break
+        if (outcome === 'error' || !get().magicActive) break
 
-        // 2. Inline image for this chunk (sequential — keeps ordering clean, avoids races).
-        if (imageEnabled && get().oneClickActive) {
+        // Inline image for this beat (sequential — keeps ordering clean, avoids races).
+        if (imageEnabled && get().magicActive) {
           const passage = get().lastGeneratedText
           if (passage.trim()) await get().generateImage(workspace, chapterNumber, passage)
         }
-        if (!get().oneClickActive) break
-
-        // 3. Stop if the chunk made no progress (empty/refused response).
-        if (chapterWordCount(get().active, chapterNumber) <= before) break
+        if (!get().magicActive) break
       }
     } finally {
-      set({ oneClickActive: false, oneClickTarget: null, oneClickChunk: 0 })
+      set({ magicActive: false, magicPlanning: false, magicBeatIndex: 0 })
     }
   },
-  stopOneClick: async () => {
-    set({ oneClickActive: false })
-    // Unblock the awaited chunk even if the underlying stream event is lost.
+  stopMagicComplete: async () => {
+    set({ magicActive: false, magicPlanning: false })
+    // Unblock the awaited beat even if the underlying stream event is lost.
     settleActiveChunk('error')
     if (get().generating) await get().cancelContinue()
     if (get().imageGenerating) await get().cancelImage()
@@ -486,9 +500,9 @@ export const useStories = create<StoriesState>((set, get) => ({
           lastGeneratedText: text
         })
         // Auto-generate an inline image for the passage just written, if enabled. Skipped
-        // during a one-click run — that loop sequences its own image per chunk.
+        // during a Magic Complete run — that loop sequences its own image per beat.
         const image = useSettings.getState().settings?.image
-        if (!get().oneClickActive && image?.enabled && image.autoAfterContinue) {
+        if (!get().magicActive && image?.enabled && image.autoAfterContinue) {
           void get().generateImage(workspace, chapterNumber, text)
         }
         settleActiveChunk('done')

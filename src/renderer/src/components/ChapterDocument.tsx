@@ -85,6 +85,8 @@ export function ChapterDocument({
   const [imgData, setImgData] = useState<Record<string, string>>({})
   const [lightbox, setLightbox] = useState<{ src: string; title: string } | null>(null)
   const [busyImageId, setBusyImageId] = useState<string | null>(null)
+  // Which copy button was last clicked (image id, or 'lightbox') — drives the brief "copied" tick.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
   // The last string we serialized out. Lets us tell an external change (Continue,
   // auto-inserted image, chapter switch) — which we must re-parse — apart from the echo
   // of our own keystrokes, which we must NOT re-parse (it would reset focus/caret).
@@ -171,6 +173,17 @@ export function ChapterDocument({
     }
   }
 
+  const copyPrompt = (text: string, key: string): void => {
+    if (!text) return
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopiedKey(key)
+        setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1500)
+      })
+      .catch(() => {})
+  }
+
   return (
     <div className="absolute inset-0 overflow-y-auto p-8">
       <div className="mx-auto max-w-3xl">
@@ -203,6 +216,15 @@ export function ChapterDocument({
               )}
               {!disabled && (
                 <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => copyPrompt(seg.title, seg.id)}
+                    disabled={!seg.title}
+                    title="Copy this image's prompt"
+                    className="rounded-md bg-surface/90 px-2 py-1 text-xs text-ink-900 shadow hover:bg-surface disabled:opacity-50"
+                  >
+                    {copiedKey === seg.id ? '✓' : '⧉'}
+                  </button>
                   <button
                     type="button"
                     onClick={() => regenerate(idx)}
@@ -243,8 +265,18 @@ export function ChapterDocument({
             className="max-h-[80vh] max-w-full rounded-lg object-contain"
           />
           {lightbox.title && (
-            <div className="max-w-2xl text-center text-xs text-white/80 font-mono">
-              {lightbox.title}
+            <div
+              className="flex max-w-2xl flex-col items-center gap-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center text-xs text-white/80 font-mono">{lightbox.title}</div>
+              <button
+                type="button"
+                onClick={() => copyPrompt(lightbox.title, 'lightbox')}
+                className="st-btn st-btn-sm st-btn-default"
+              >
+                {copiedKey === 'lightbox' ? 'Copied!' : 'Copy prompt'}
+              </button>
             </div>
           )}
         </div>

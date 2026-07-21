@@ -194,6 +194,7 @@ export type ApiLogKind =
   | 'list-models'
   | 'continue'
   | 'continue-stream'
+  | 'plan-beats'
   | 'image-tags'
   | 'image-generate'
 

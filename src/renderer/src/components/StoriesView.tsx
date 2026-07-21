@@ -68,9 +68,10 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     imageGenerating,
     imageStatus,
     imageError,
-    oneClickActive,
-    oneClickTarget,
-    oneClickChunk,
+    magicActive,
+    magicPlanning,
+    magicBeats,
+    magicBeatIndex,
     updateChapter,
     addChapter,
     selectChapter,
@@ -80,8 +81,8 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     generateImage,
     regenerateImage,
     cancelImage,
-    startOneClick,
-    stopOneClick,
+    startMagicComplete,
+    stopMagicComplete,
     remove
   } = useStories()
   const { characters } = useCharacters()
@@ -90,7 +91,6 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const [outlineDraft, setOutlineDraft] = useState('')
   const [contentDraft, setContentDraft] = useState('')
   const [userNote, setUserNote] = useState('')
-  const [targetWords, setTargetWords] = useState(1000)
   const [saving, setSaving] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(true)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -199,7 +199,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     await cancelContinue()
   }
 
-  const busy = generating || imageGenerating || oneClickActive
+  const busy = generating || imageGenerating || magicActive
 
   const proseTail = (): string => {
     const prose = contentDraft.replace(IMAGE_MARKER_RE, '').trim()
@@ -212,17 +212,23 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     await generateImage(workspace, chapter.number, proseTail())
   }
 
-  const onAutoWrite = async (): Promise<void> => {
-    if (!chapter || targetWords <= 0) return
+  const onMagicComplete = async (): Promise<void> => {
+    if (!chapter) return
+    if (!outlineDraft.trim()) {
+      alert(
+        'Add a chapter outline first. Magic Complete breaks the outline into story beats and writes each one in turn.'
+      )
+      return
+    }
     const note = imageEnabled
-      ? 'Each pass writes one chunk — sized by your generation settings (max tokens) — and adds an inline image after it.'
-      : 'Each pass writes one chunk, sized by your generation settings (max tokens). Image generation is off, so no images will be added.'
+      ? 'It breaks this chapter’s outline into story beats, then writes each beat as its own passage with an inline image after it.'
+      : 'It breaks this chapter’s outline into story beats, then writes each beat as its own passage. Image generation is off, so no images will be added.'
     const ok = confirm(
-      `Auto-write this chapter toward ~${targetWords} words?\n\n${note}\n\nThis can take a while and locks the editor until it finishes or you press Stop.`
+      `Magic Complete this chapter?\n\n${note}\n\nThis can take a while and locks the editor until it finishes or you press Stop.`
     )
     if (!ok) return
     await flushSave()
-    await startOneClick(workspace, targetWords)
+    await startMagicComplete(workspace)
   }
 
   const canRegenerate = !!lastGen && lastGen.chapterNumber === activeChapterNumber
@@ -417,26 +423,27 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             placeholder="Author note for this generation (optional, not saved)"
             className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-50"
           />
-          {oneClickActive ? (
+          {magicActive ? (
             <>
               <div className="flex items-center gap-2 text-xs text-accent-600 whitespace-nowrap">
                 <span className="inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse" />
-                Auto-writing · chunk {oneClickChunk}
-                {generating
-                  ? ' · writing'
-                  : imageGenerating
-                    ? imageStatus === 'tagging'
-                      ? ' · tagging'
-                      : imageStatus === 'saving'
-                        ? ' · saving image'
-                        : ' · image'
-                    : ''}
-                {oneClickTarget != null &&
-                  ` · ~${wordCount((chapter?.content ?? '').replace(IMAGE_MARKER_RE, ''))}/${oneClickTarget} words`}
+                {magicPlanning
+                  ? 'Planning beats…'
+                  : `Magic Complete · beat ${magicBeatIndex}/${magicBeats.length}`}
+                {!magicPlanning &&
+                  (generating
+                    ? ' · writing'
+                    : imageGenerating
+                      ? imageStatus === 'tagging'
+                        ? ' · tagging'
+                        : imageStatus === 'saving'
+                          ? ' · saving image'
+                          : ' · image'
+                      : '')}
               </div>
               <button
                 type="button"
-                onClick={() => stopOneClick()}
+                onClick={() => stopMagicComplete()}
                 className="rounded-md border border-danger/50 bg-surface px-4 py-2 text-sm text-danger font-medium hover:bg-danger/10"
               >
                 Stop
@@ -505,22 +512,13 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
                   🖼 Image
                 </button>
               )}
-              <input
-                type="number"
-                value={targetWords}
-                min={100}
-                step={100}
-                onChange={(e) => setTargetWords(Math.max(0, Number(e.target.value) || 0))}
-                title="Target word count for Auto-write"
-                className="w-20 rounded-md border border-ink-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-              />
               <button
                 type="button"
-                onClick={onAutoWrite}
-                title="Keep generating (one chunk + inline image per pass) until the chapter reaches the target word count"
+                onClick={onMagicComplete}
+                title="Break this chapter's outline into story beats, then write each beat in turn (with an inline image after each)"
                 className="rounded-md border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 hover:bg-ink-100"
               >
-                ✍ To length
+                ✨ Magic Complete
               </button>
               <button
                 type="button"

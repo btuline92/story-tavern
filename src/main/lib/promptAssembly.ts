@@ -15,9 +15,11 @@ export interface AssemblyContext {
   chapters: Array<{ number: number; title: string; outline: string; content: string }>
   activeChapterNumber: number
   userNote?: string
-  /** When set (one-click "write to length"), the model is told the chapter's word target
-   *  and nudged to start wrapping up as it approaches it. */
-  targetWords?: number
+  /** When set (Magic Complete), the single story beat the model should write as the next
+   *  passage. Its ordinal position is carried by beatIndex/beatTotal for pacing awareness. */
+  beat?: string
+  beatIndex?: number
+  beatTotal?: number
   /** Active plugin decorators — extra system-prompt emphasis appended near the end. */
   plugins?: string[]
 }
@@ -27,8 +29,6 @@ const IMAGE_MARKER_RE = /!\[[^\]]*\]\([^)]*\)/g
 function stripImageMarkers(content: string): string {
   return content.replace(IMAGE_MARKER_RE, '').replace(/\n{3,}/g, '\n\n')
 }
-/** Approaching within this many words of the target flips on wrap-up guidance. */
-const WRAP_UP_THRESHOLD = 300
 
 function charNames(ctx: AssemblyContext): string {
   const names = ctx.characters.map((c) => c.name).filter((n) => n && n.trim())
@@ -80,27 +80,24 @@ function manuscriptText(ctx: AssemblyContext): string {
   return lines.join('\n\n').trim()
 }
 
-function activeChapterWordCount(ctx: AssemblyContext): number {
-  const ch = ctx.chapters.find((c) => c.number === ctx.activeChapterNumber)
-  if (!ch) return 0
-  return (stripImageMarkers(ch.content).trim().match(/\S+/g) ?? []).length
-}
-
-/** Tell the model the chapter's word target and, near the end, to start wrapping up. */
-function lengthGuidance(ctx: AssemblyContext): PromptEntry | null {
-  if (!ctx.targetWords || ctx.targetWords <= 0) return null
-  const target = ctx.targetWords
-  const current = activeChapterWordCount(ctx)
-  const remaining = target - current
-  let content: string
-  if (remaining <= 0) {
-    content = `LENGTH TARGET: this chapter has reached its target of about ${target} words (currently about ${current}). Bring the current scene to a satisfying close in this passage — resolve the immediate moment rather than opening new threads.`
-  } else if (remaining <= WRAP_UP_THRESHOLD) {
-    content = `LENGTH TARGET: this chapter is nearing its target of about ${target} words (currently about ${current}, ~${remaining} to go). Begin steering the scene toward a natural stopping point over this and perhaps one more passage — start wrapping up rather than introducing new threads.`
-  } else {
-    content = `LENGTH TARGET: this chapter is being written toward about ${target} words (currently about ${current}). Keep the scene developing at a natural pace; do not rush toward a conclusion yet.`
+/** Magic Complete: direct the model to write exactly one story beat as the next passage. */
+function beatGuidance(ctx: AssemblyContext): PromptEntry | null {
+  if (!ctx.beat || !ctx.beat.trim()) return null
+  const pos =
+    ctx.beatIndex != null && ctx.beatTotal != null
+      ? ` (beat ${ctx.beatIndex} of ${ctx.beatTotal})`
+      : ''
+  const isLast = ctx.beatIndex != null && ctx.beatTotal != null && ctx.beatIndex >= ctx.beatTotal
+  const tail = isLast
+    ? ' This is the final beat of the chapter — bring the chapter to a satisfying close as you write it.'
+    : ' Cover this beat fully and let the scene breathe, but do NOT jump ahead into later beats — the beats that follow will be written in their own passages.'
+  return {
+    role: 'system',
+    content:
+      `CURRENT BEAT TO WRITE${pos}:\n${ctx.beat.trim()}\n\n` +
+      `Write this beat as the next passage of the chapter, picking up in flowing prose exactly where the manuscript leaves off.${tail} ` +
+      `Do not output headings, beat labels, lists, or outline text — write prose only.`
   }
-  return { role: 'system', content }
 }
 
 function upcomingOutlinesText(ctx: AssemblyContext): string {
@@ -183,14 +180,15 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
         '\n\nUse these as direction for where the story is heading. Do not reach the material from those chapters yet — the current passage you are writing is the active chapter only.'
     })
   }
-  const guidance = lengthGuidance(ctx)
-  if (guidance) entries.push(guidance)
   // Plugins: reusable system-prompt decorators, appended at the end of the system context for
   // recency emphasis. Interpolated like preset blocks so {{char}} etc. resolve.
   for (const plugin of ctx.plugins ?? []) {
     const content = interpolate(plugin, ctx).trim()
     if (content) entries.push({ role: 'system', content })
   }
+  // The current beat directive sits closest to the final nudge for maximum recency.
+  const beat = beatGuidance(ctx)
+  if (beat) entries.push(beat)
   entries.push(continueNudge(ctx))
   return entries
 }
