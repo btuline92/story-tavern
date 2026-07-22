@@ -24,9 +24,19 @@ export interface AssemblyContext {
   plugins?: string[]
 }
 
-/** Inline image markers are stored in the chapter but must not be fed back to the LLM. */
-const IMAGE_MARKER_RE = /!\[[^\]]*\]\([^)]*\)/g
-function stripImageMarkers(content: string): string {
+/**
+ * Inline image markers are stored in the chapter but must not be fed back to the LLM — otherwise
+ * the model imitates the syntax and starts emitting image tags into its prose.
+ *
+ * The marker is `![alt](url "title")`, where the title is a Danbooru prompt that routinely contains
+ * parentheses (e.g. `(from behind)`, `hatsune_miku_(vocaloid)`, `(best quality:1.2)`). Matching the
+ * inner part with a naive `[^)]*` stops at the FIRST `)` inside the title and leaves a dangling
+ * fragment (`, c")`) behind — which is exactly what leaks into the manuscript. Instead, match the
+ * url up to the first whitespace/`)` and the optional quoted title separately (the title is emitted
+ * with its own `"` escaped to `'`, so `[^"]*` safely spans any parentheses inside it).
+ */
+const IMAGE_MARKER_RE = /!\[[^\]]*\]\([^\s)]*(?:\s+"[^"]*")?\)/g
+export function stripImageMarkers(content: string): string {
   return content.replace(IMAGE_MARKER_RE, '').replace(/\n{3,}/g, '\n\n')
 }
 

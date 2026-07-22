@@ -4,7 +4,7 @@ import { getKey } from '../lib/safeStore'
 import { readWorkspaceSettings } from './workspace'
 import { loadStory } from '../lib/storyStorage'
 import { getPreset, defaultPreset } from '../lib/presetStore'
-import { assemble, type PromptEntry } from '../lib/promptAssembly'
+import { assemble, stripImageMarkers, type PromptEntry } from '../lib/promptAssembly'
 import { streamContinue } from '../lib/streamGeneration'
 import { logApiCall } from '../lib/apiLogger'
 import { readCharactersData } from '../lib/characterData'
@@ -14,8 +14,6 @@ import type { StoryWithChapters, Chapter } from '../lib/storyStorage'
 import type { ProviderId } from './providers'
 
 const activeStreams = new Map<string, AbortController>()
-
-const IMAGE_MARKER_RE = /!\[[^\]]*\]\([^)]*\)/g
 
 /** Build the two-message prompt that asks the model to break a chapter outline into ordered beats. */
 function buildBeatPlanEntries(args: {
@@ -32,7 +30,7 @@ function buildBeatPlanEntries(args: {
       return desc ? `- ${name}: ${desc.slice(0, 400)}` : `- ${name}`
     })
     .join('\n')
-  const priorProse = chapter.content.replace(IMAGE_MARKER_RE, '').trim()
+  const priorProse = stripImageMarkers(chapter.content).trim()
   const tail = priorProse.slice(-1200)
 
   const system: PromptEntry = {
@@ -46,7 +44,7 @@ function buildBeatPlanEntries(args: {
       '- Each beat is one or two sentences of plain description of what happens, not prose.\n' +
       '- Prefer 4–8 beats for a normal outline; use fewer for a thin outline, more for a dense one.\n' +
       '- Respond with ONLY a JSON array of strings and nothing else — no prose, no keys, no markdown fences. ' +
-      '- NSFW content is allowed if the outline calls for it. \n' + 
+      '- NSFW content is allowed if the outline calls for it. \n' +
       'Example: ["Beat one...", "Beat two...", "Beat three..."]'
   }
 
@@ -92,7 +90,7 @@ function buildOutlineSuggestEntries(args: {
     if (outline) {
       priorLines.push(`${heading}: ${outline}`)
     } else {
-      const prose = c.content.replace(IMAGE_MARKER_RE, '').trim()
+      const prose = stripImageMarkers(c.content).trim()
       if (prose) priorLines.push(`${heading}: …${prose.slice(-500)}`)
     }
   }
@@ -151,7 +149,11 @@ function parseOutlines(text: string): string[][] {
     let beats: string[] = []
     if (Array.isArray(item)) {
       beats = item.map((b) => String(b).trim()).filter(Boolean)
-    } else if (item && typeof item === 'object' && Array.isArray((item as { beats?: unknown }).beats)) {
+    } else if (
+      item &&
+      typeof item === 'object' &&
+      Array.isArray((item as { beats?: unknown }).beats)
+    ) {
       beats = (item as { beats: unknown[] }).beats.map((b) => String(b).trim()).filter(Boolean)
     } else if (typeof item === 'string') {
       // A whole outline handed back as one newline-delimited string.
