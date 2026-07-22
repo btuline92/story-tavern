@@ -1,4 +1,5 @@
-import { dialog, ipcMain } from 'electron'
+import { ipcMain } from 'electron'
+import { showOpenDialog } from '../lib/dialogs'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -356,8 +357,8 @@ export function registerWorkspaceIpc(): void {
     return state.lastWorkspace
   })
 
-  ipcMain.handle('workspace:pick', async () => {
-    const result = await dialog.showOpenDialog({
+  ipcMain.handle('workspace:pick', async (e) => {
+    const result = await showOpenDialog(e, {
       title: 'Choose your Story Tavern workspace',
       properties: ['openDirectory', 'createDirectory']
     })

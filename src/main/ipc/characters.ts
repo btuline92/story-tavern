@@ -1,5 +1,6 @@
-import { dialog, ipcMain } from 'electron'
+import { ipcMain } from 'electron'
 import { readFile } from 'node:fs/promises'
+import { showOpenDialog, showSaveDialog } from '../lib/dialogs'
 import { join } from 'node:path'
 import {
   createCharacter,
@@ -17,8 +18,8 @@ export function registerCharactersIpc(): void {
     return listCharacters(workspace)
   })
 
-  ipcMain.handle('characters:pick-and-import', async (_e, workspace: string) => {
-    const result = await dialog.showOpenDialog({
+  ipcMain.handle('characters:pick-and-import', async (e, workspace: string) => {
+    const result = await showOpenDialog(e, {
       title: 'Import character card',
       properties: ['openFile'],
       filters: [
@@ -42,8 +43,8 @@ export function registerCharactersIpc(): void {
     }
   )
 
-  ipcMain.handle('characters:pick-avatar', async (_e, workspace: string, id: string) => {
-    const result = await dialog.showOpenDialog({
+  ipcMain.handle('characters:pick-avatar', async (e, workspace: string, id: string) => {
+    const result = await showOpenDialog(e, {
       title: 'Choose avatar image',
       properties: ['openFile'],
       filters: [{ name: 'PNG', extensions: ['png'] }]
@@ -52,8 +53,8 @@ export function registerCharactersIpc(): void {
     return replaceAvatar(workspace, id, result.filePaths[0])
   })
 
-  ipcMain.handle('characters:export', async (_e, workspace: string, id: string, name: string) => {
-    const result = await dialog.showSaveDialog({
+  ipcMain.handle('characters:export', async (e, workspace: string, id: string, name: string) => {
+    const result = await showSaveDialog(e, {
       title: 'Export as Tavern card',
       defaultPath: `${name}.png`,
       filters: [{ name: 'Tavern PNG card', extensions: ['png'] }]

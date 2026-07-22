@@ -1,4 +1,5 @@
-import { dialog, ipcMain } from 'electron'
+import { ipcMain } from 'electron'
+import { showOpenDialog, showSaveDialog } from '../lib/dialogs'
 import { basename, extname } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
 import {
@@ -26,8 +27,8 @@ export function registerPresetsIpc(): void {
     return true
   })
 
-  ipcMain.handle('presets:import', async (_e, workspace: string) => {
-    const result = await dialog.showOpenDialog({
+  ipcMain.handle('presets:import', async (e, workspace: string) => {
+    const result = await showOpenDialog(e, {
       title: 'Import preset (SillyTavern JSON)',
       properties: ['openFile'],
       filters: [{ name: 'JSON', extensions: ['json'] }]
@@ -40,10 +41,10 @@ export function registerPresetsIpc(): void {
     return importPreset(workspace, json, fallbackName)
   })
 
-  ipcMain.handle('presets:export', async (_e, workspace: string, id: string) => {
+  ipcMain.handle('presets:export', async (e, workspace: string, id: string) => {
     const preset = await getPreset(workspace, id)
     if (!preset) return null
-    const result = await dialog.showSaveDialog({
+    const result = await showSaveDialog(e, {
       title: 'Export preset (SillyTavern JSON)',
       defaultPath: `${preset.name}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }]

@@ -31,6 +31,15 @@ function createWindow(): void {
     mainWindow.show()
   })
 
+  // Native modals (file dialogs, and window.confirm/alert) steal OS focus while open.
+  // On Windows especially, when one closes the window frame regains focus but the web
+  // page does NOT — every text field then silently ignores keyboard input until the app
+  // is restarted. Re-focusing the webContents whenever the window regains focus restores
+  // input reliably, and is a harmless no-op the rest of the time.
+  mainWindow.on('focus', () => {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.focus()
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
