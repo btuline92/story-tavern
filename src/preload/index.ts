@@ -169,6 +169,7 @@ export type ApiLogKind =
   | 'continue'
   | 'continue-stream'
   | 'plan-beats'
+  | 'suggest-outlines'
   | 'image-tags'
   | 'image-generate'
 
@@ -352,6 +353,19 @@ const api = {
       chapterNumber: number
     ): Promise<{ beats: string[] } | { error: string }> =>
       ipcRenderer.invoke('generation:plan-beats', workspace, storyId, chapterNumber),
+    suggestOutlines: (
+      workspace: string,
+      storyId: string,
+      chapterNumber: number,
+      guidance?: string
+    ): Promise<{ outlines: string[][] } | { error: string }> =>
+      ipcRenderer.invoke(
+        'generation:suggest-outlines',
+        workspace,
+        storyId,
+        chapterNumber,
+        guidance
+      ),
     cancel: (streamId: string): Promise<boolean> =>
       ipcRenderer.invoke('generation:cancel', streamId),
     onDelta: (handler: (streamId: string, delta: string) => void): (() => void) =>

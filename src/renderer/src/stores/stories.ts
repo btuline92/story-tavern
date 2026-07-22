@@ -93,6 +93,9 @@ interface StoriesState {
     patch: { title?: string; outline?: string; content?: string }
   ) => Promise<Chapter>
   addChapter: (workspace: string) => Promise<void>
+  /** Delete a chapter and its file. No-op on the last remaining chapter. If the deleted
+   *  chapter was active, selection moves to the nearest neighbor. */
+  deleteChapter: (workspace: string, chapterNumber: number) => Promise<void>
   selectChapter: (chapterNumber: number) => void
   startContinue: (
     workspace: string,
@@ -227,6 +230,40 @@ export const useStories = create<StoriesState>((set, get) => ({
     const created = await window.api.stories.addChapter(workspace, current.meta.id)
     const reloaded = await window.api.stories.load(workspace, current.meta.id)
     set({ active: reloaded, activeChapterNumber: created.number })
+  },
+  deleteChapter: async (workspace, chapterNumber) => {
+    const current = get().active
+    if (!current) return
+    // Storage refuses to delete the only chapter; mirror that guard here.
+    if (current.chapters.length <= 1) return
+    const ok = await window.api.stories.deleteChapter(workspace, current.meta.id, chapterNumber)
+    if (!ok) return
+    const reloaded = await window.api.stories.load(workspace, current.meta.id)
+    if (!reloaded) {
+      set({ active: null, selectedId: null, activeChapterNumber: null })
+      return
+    }
+    // If the active chapter still exists, keep it; otherwise move to the nearest neighbor
+    // (prefer the next chapter up, else the previous one).
+    const prevActive = get().activeChapterNumber
+    let nextActive = prevActive
+    if (prevActive == null || !reloaded.chapters.some((c) => c.number === prevActive)) {
+      const higher = reloaded.chapters.filter((c) => c.number > chapterNumber).map((c) => c.number)
+      const lower = reloaded.chapters.filter((c) => c.number < chapterNumber).map((c) => c.number)
+      nextActive = higher.length
+        ? Math.min(...higher)
+        : lower.length
+          ? Math.max(...lower)
+          : (reloaded.chapters[0]?.number ?? null)
+    }
+    set({
+      active: reloaded,
+      activeChapterNumber: nextActive,
+      lastGen: null,
+      streamBuffer: '',
+      reasoningBuffer: '',
+      generationError: null
+    })
   },
   selectChapter: (chapterNumber) =>
     set({

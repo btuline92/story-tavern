@@ -64,6 +64,107 @@ function buildBeatPlanEntries(args: {
   return [system, { role: 'user', content: parts.join('\n\n') }]
 }
 
+/** How many beats each suggested chapter outline should contain. */
+const OUTLINE_BEATS = 8
+
+/** Build the prompt that asks the model for four distinct candidate outlines for the next chapter. */
+function buildOutlineSuggestEntries(args: {
+  story: StoryWithChapters
+  chapter: Chapter
+  characters: TavernV2Data[]
+  guidance: string
+}): PromptEntry[] {
+  const { story, chapter, characters, guidance } = args
+  const charLines = characters
+    .map((c) => {
+      const name = c.name?.trim() || 'Character'
+      const desc = (c.description ?? '').replace(/\s+/g, ' ').trim()
+      return desc ? `- ${name}: ${desc.slice(0, 300)}` : `- ${name}`
+    })
+    .join('\n')
+
+  // Prior chapters give continuity: prefer each one's outline, else a truncated prose tail.
+  const priorLines: string[] = []
+  for (const c of story.chapters) {
+    if (c.number >= chapter.number) continue
+    const heading = c.title || `Chapter ${c.number}`
+    const outline = c.outline.trim()
+    if (outline) {
+      priorLines.push(`${heading}: ${outline}`)
+    } else {
+      const prose = c.content.replace(IMAGE_MARKER_RE, '').trim()
+      if (prose) priorLines.push(`${heading}: …${prose.slice(-500)}`)
+    }
+  }
+
+  const system: PromptEntry = {
+    role: 'system',
+    content:
+      'You are a story-planning assistant. You propose possible outlines for a chapter of a story.\n\n' +
+      'Generate FOUR distinct candidate outlines. Requirements:\n' +
+      `- Each outline is exactly ${OUTLINE_BEATS} story beats, one concise sentence per beat.\n` +
+      '- A beat is one step of the chapter — an action, turn, revelation, or emotional shift.\n' +
+      '- NSFW Content is allowed.\n' +
+      '- The four outlines must be meaningfully different from one another: different directions, pacing, ' +
+      'or emphasis — not four rewordings of the same plot.\n' +
+      '- All four must be consistent with the premise, the characters, and everything in earlier chapters.\n' +
+      `- Respond with ONLY a JSON array of 4 arrays, each inner array containing exactly ${OUTLINE_BEATS} short ` +
+      'beat strings. No prose, no keys, no markdown fences. ' +
+      'Example: [["…","…"],["…","…"],["…","…"],["…","…"]]'
+  }
+
+  const parts: string[] = [`Story title: ${story.meta.title || 'Untitled'}`]
+  if (story.meta.premise?.trim()) parts.push(`Premise:\n${story.meta.premise.trim()}`)
+  if (charLines) parts.push(`Characters:\n${charLines}`)
+  if (priorLines.length) parts.push(`Earlier chapters so far:\n${priorLines.join('\n')}`)
+  parts.push(
+    `Propose outlines for: ${chapter.title || `Chapter ${chapter.number}`} (chapter ${chapter.number}).`
+  )
+  if (chapter.outline.trim()) {
+    parts.push(
+      `The author's current rough outline draft for this chapter (a starting point, not binding):\n${chapter.outline.trim()}`
+    )
+  }
+  if (guidance.trim()) {
+    parts.push(
+      `The author's rough idea / guidance — steer all four outlines toward this:\n${guidance.trim()}`
+    )
+  }
+  return [system, { role: 'user', content: parts.join('\n\n') }]
+}
+
+/** Parse four candidate outlines (each an array of beat strings) from the model's JSON response. */
+function parseOutlines(text: string): string[][] {
+  const t = (text ?? '').trim()
+  const start = t.indexOf('[')
+  const end = t.lastIndexOf(']')
+  if (start === -1 || end <= start) return []
+  let data: unknown
+  try {
+    data = JSON.parse(t.slice(start, end + 1))
+  } catch {
+    return []
+  }
+  if (!Array.isArray(data)) return []
+  const outlines: string[][] = []
+  for (const item of data) {
+    let beats: string[] = []
+    if (Array.isArray(item)) {
+      beats = item.map((b) => String(b).trim()).filter(Boolean)
+    } else if (item && typeof item === 'object' && Array.isArray((item as { beats?: unknown }).beats)) {
+      beats = (item as { beats: unknown[] }).beats.map((b) => String(b).trim()).filter(Boolean)
+    } else if (typeof item === 'string') {
+      // A whole outline handed back as one newline-delimited string.
+      beats = item
+        .split('\n')
+        .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+        .filter(Boolean)
+    }
+    if (beats.length) outlines.push(beats.slice(0, 12))
+  }
+  return outlines.slice(0, 4)
+}
+
 /** Parse the model's beat list — JSON array preferred, numbered/bulleted lines as a fallback. */
 function parseBeats(text: string): string[] {
   const t = (text ?? '').trim()
@@ -287,6 +388,82 @@ export function registerGenerationIpc(): void {
       const beats = parseBeats(metrics.fullText)
       if (beats.length === 0) return { error: 'The model returned no usable beats.' }
       return { beats }
+    }
+  )
+
+  ipcMain.handle(
+    'generation:suggest-outlines',
+    async (
+      _event,
+      workspace: string,
+      storyId: string,
+      chapterNumber: number,
+      guidance?: string
+    ): Promise<{ outlines: string[][] } | { error: string }> => {
+      const settings = await readWorkspaceSettings(workspace)
+      const provider: ProviderId = settings.selectedProvider
+      const model = settings.models[provider]
+      const apiKey = await getKey(provider)
+      if (!apiKey) return { error: `No API key saved for ${provider}` }
+
+      const story = await loadStory(workspace, storyId)
+      if (!story) return { error: `Story not found: ${storyId}` }
+      const chapter = story.chapters.find((c) => c.number === chapterNumber)
+      if (!chapter) return { error: `Chapter ${chapterNumber} not found` }
+
+      const characters = await readCharactersData(workspace, story.meta.character_ids)
+      const entries = buildOutlineSuggestEntries({
+        story,
+        chapter,
+        characters,
+        guidance: guidance ?? ''
+      })
+
+      const ctrl = new AbortController()
+      let genError: string | null = null
+      const metrics = await streamContinue(
+        {
+          provider,
+          model,
+          apiKey,
+          generation: settings.generation,
+          entries,
+          openrouter: settings.openrouter
+        },
+        ctrl.signal,
+        {
+          onDelta: () => {},
+          onReasoning: () => {},
+          onDone: () => {},
+          onError: (e) => {
+            genError = e
+          }
+        }
+      )
+      await logApiCall(workspace, {
+        provider,
+        model,
+        kind: 'suggest-outlines',
+        url: metrics.url,
+        request_body: metrics.requestBody,
+        status: metrics.status,
+        response_body: JSON.stringify(
+          { text: metrics.fullText, reasoning: metrics.reasoningText },
+          null,
+          2
+        ),
+        error: metrics.error,
+        duration_ms: metrics.durationMs,
+        story_id: storyId,
+        chapter_number: chapterNumber
+      })
+      if (genError || metrics.error) {
+        return { error: `Outline suggestion failed: ${genError ?? metrics.error}` }
+      }
+
+      const outlines = parseOutlines(metrics.fullText)
+      if (outlines.length === 0) return { error: 'The model returned no usable outlines.' }
+      return { outlines }
     }
   )
 

@@ -6,6 +6,7 @@ import { useWorkspace } from '../stores/workspace'
 import { NewStoryDialog } from './NewStoryDialog'
 import { StoryDetailsPanel } from './StoryDetailsPanel'
 import { ChapterDocument } from './ChapterDocument'
+import { OutlineSuggestDialog } from './OutlineSuggestDialog'
 
 const IMAGE_MARKER_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g
 
@@ -74,6 +75,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     magicBeatIndex,
     updateChapter,
     addChapter,
+    deleteChapter,
     selectChapter,
     startContinue,
     regenerate,
@@ -93,6 +95,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const [userNote, setUserNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(true)
+  const [outlineDialogOpen, setOutlineDialogOpen] = useState(false)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const streamScrollRef = useRef<HTMLDivElement | null>(null)
   // Tracks which chapter id we've initialized drafts for. Only changes drive a re-init.
@@ -274,11 +277,11 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
         </div>
         <ul className="flex-1 overflow-y-auto">
           {active.chapters.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} className="relative group">
               <button
                 type="button"
                 onClick={() => selectChapter(c.number)}
-                className={`block w-full px-3 py-2 text-left text-sm ${
+                className={`block w-full px-3 py-2 pr-8 text-left text-sm ${
                   c.number === activeChapterNumber
                     ? 'bg-ink-100 text-ink-900'
                     : 'text-ink-900 hover:bg-ink-100'
@@ -287,6 +290,22 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
                 <div className="font-medium truncate">{c.title}</div>
                 <div className="text-xs text-ink-700">{wordCount(c.content)} words</div>
               </button>
+              {active.chapters.length > 1 && (
+                <button
+                  type="button"
+                  title="Delete chapter"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (confirm(`Delete "${c.title}" and all its text? This cannot be undone.`)) {
+                      await deleteChapter(workspace, c.number)
+                    }
+                  }}
+                  className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-md text-base leading-none text-ink-700 opacity-0 transition hover:bg-danger/15 hover:text-danger focus:opacity-100 group-hover:opacity-100 disabled:opacity-0"
+                  aria-label={`Delete ${c.title}`}
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -326,12 +345,23 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
 
         {!noChapters && (
           <div className="border-b border-ink-200 bg-ink-50 px-6 py-2">
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-ink-700 mb-1">
-              Chapter outline
-              <span className="ml-2 font-normal normal-case text-ink-700/70">
-                (sent to the model — what should happen in this chapter)
-              </span>
-            </label>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-ink-700">
+                Chapter outline
+                <span className="ml-2 font-normal normal-case text-ink-700/70">
+                  (sent to the model — what should happen in this chapter)
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setOutlineDialogOpen(true)}
+                disabled={busy}
+                title="Have the LLM suggest four possible outlines for this chapter"
+                className="shrink-0 rounded-md border border-ink-200 bg-surface px-2 py-1 text-xs font-medium text-ink-900 hover:bg-ink-100 disabled:opacity-50"
+              >
+                ✨ Suggest outlines
+              </button>
+            </div>
             <textarea
               value={outlineDraft}
               onChange={(e) => setOutlineDraft(e.target.value)}
@@ -547,6 +577,17 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
         <aside className="w-80 shrink-0 border-l border-ink-200 bg-surface overflow-hidden">
           <StoryDetailsPanel workspace={workspace} />
         </aside>
+      )}
+
+      {chapter && (
+        <OutlineSuggestDialog
+          open={outlineDialogOpen}
+          workspace={workspace}
+          storyId={active.meta.id}
+          chapterNumber={chapter.number}
+          onClose={() => setOutlineDialogOpen(false)}
+          onApply={(text) => setOutlineDraft(text)}
+        />
       )}
     </div>
   )
