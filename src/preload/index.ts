@@ -33,6 +33,17 @@ export interface TagPrompt {
   text: string
 }
 
+export interface PromptPrefix {
+  name: string
+  positive: string
+  negative: string
+}
+
+export interface SystemPrompt {
+  name: string
+  text: string
+}
+
 export interface ImageSettings {
   enabled: boolean
   autoAfterContinue: boolean
@@ -50,14 +61,14 @@ export interface ImageSettings {
   seed: number
   denoise: number
   customPlaceholders: CustomPlaceholder[]
-  promptPrefix: string
-  negativePrompt: string
+  promptPrefixes: PromptPrefix[]
+  activePromptPrefix: string
   appearanceSource: 'description' | 'appearance'
-  tagSystemPrompt: string
+  systemPrompts: SystemPrompt[]
+  activeSystemPrompt: string
   tagPrompts: TagPrompt[]
   activeTagPrompt: string
-  tagTemperature: number
-  tagDisableThinking: boolean
+  generation: GenerationSettings
   tagModelOverride: TagModelOverride
 }
 

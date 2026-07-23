@@ -10,14 +10,16 @@ import { PresetsView } from './components/PresetsView'
 import { PluginsView } from './components/PluginsView'
 import { StoriesView } from './components/StoriesView'
 import { LogsView } from './components/LogsView'
+import { ImageSettingsPanel } from './components/ImageSettings'
 
-type View = 'stories' | 'characters' | 'presets' | 'plugins' | 'logs' | 'settings'
+type View = 'stories' | 'characters' | 'presets' | 'plugins' | 'images' | 'logs' | 'settings'
 
 const TABS: { id: View; label: string }[] = [
   { id: 'stories', label: 'Stories' },
   { id: 'characters', label: 'Characters' },
   { id: 'presets', label: 'Presets' },
   { id: 'plugins', label: 'Plugins' },
+  { id: 'images', label: 'Images' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' }
 ]
@@ -148,6 +150,13 @@ function App(): React.JSX.Element {
       ) : view === 'stories' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">
           <StoriesView />
+        </main>
+      ) : view === 'images' ? (
+        <main className="row-start-2 col-span-2 overflow-hidden">
+          <div className="h-full overflow-y-auto p-8">
+            <h2 className="text-2xl font-semibold text-ink-900 mb-6">Image generation</h2>
+            <ImageSettingsPanel />
+          </div>
         </main>
       ) : view === 'logs' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">

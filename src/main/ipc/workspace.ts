@@ -42,6 +42,20 @@ export interface TagPrompt {
   text: string
 }
 
+/** A named positive+negative prompt-prefix pair, for switching between "classes" of
+ *  image generators (e.g. anime vs. realism). One pair is active at a time. */
+export interface PromptPrefix {
+  name: string
+  positive: string
+  negative: string
+}
+
+/** A named tag-generation system prompt; one is active at a time. */
+export interface SystemPrompt {
+  name: string
+  text: string
+}
+
 export interface ImageSettings {
   /** Master switch — when off, no image UI/actions are active. */
   enabled: boolean
@@ -64,20 +78,21 @@ export interface ImageSettings {
   seed: number
   denoise: number
   customPlaceholders: CustomPlaceholder[]
-  // Prompt construction
-  promptPrefix: string
-  negativePrompt: string
+  // Prompt construction — named positive/negative prefix pairs; one active at a time.
+  promptPrefixes: PromptPrefix[]
+  activePromptPrefix: string
   /** Where the tagger's per-character reference comes from. */
   appearanceSource: 'description' | 'appearance'
   // LLM tag generation
-  tagSystemPrompt: string
+  /** Named system prompts for the tagging LLM; one is active at a time. */
+  systemPrompts: SystemPrompt[]
+  activeSystemPrompt: string
   /** Named "scene instruction" prompts (e.g. camera perspectives); one is active at a time. */
   tagPrompts: TagPrompt[]
   activeTagPrompt: string
-  tagTemperature: number
-  /** Suppress extended thinking/reasoning for the tagging call (faster). When false,
-   *  tagging inherits the workspace generation reasoning_level. */
-  tagDisableThinking: boolean
+  /** Dedicated generation settings for the tagging LLM call — full hyperparameters +
+   *  reasoning. Image tagging no longer inherits the base model's generation settings. */
+  generation: GenerationSettings
   tagModelOverride: TagModelOverride
 }
 
@@ -202,17 +217,24 @@ const DEFAULT_IMAGE: ImageSettings = {
   seed: -1,
   denoise: 1,
   customPlaceholders: [],
-  promptPrefix: 'best quality, absurdres, aesthetic,',
-  negativePrompt: DEFAULT_NEGATIVE_PROMPT,
+  promptPrefixes: [
+    {
+      name: 'Default',
+      positive: 'best quality, absurdres, aesthetic,',
+      negative: DEFAULT_NEGATIVE_PROMPT
+    }
+  ],
+  activePromptPrefix: 'Default',
   appearanceSource: 'description',
-  tagSystemPrompt: DEFAULT_TAG_SYSTEM_PROMPT,
+  systemPrompts: [{ name: 'Default', text: DEFAULT_TAG_SYSTEM_PROMPT }],
+  activeSystemPrompt: 'Default',
   tagPrompts: [
     { name: 'Multi Character 3rd Person', text: DEFAULT_TAG_INSTRUCTION },
     { name: 'Male POV', text: MALE_POV_TAG_INSTRUCTION }
   ],
   activeTagPrompt: 'Multi Character 3rd Person',
-  tagTemperature: 0.3,
-  tagDisableThinking: true,
+  // Fast-tagging defaults: low temperature, no extended thinking.
+  generation: { ...DEFAULT_GENERATION, temperature: 0.3, reasoning_level: 'off' },
   tagModelOverride: { enabled: false, provider: 'anthropic', model: '' }
 }
 
@@ -231,8 +253,13 @@ function mergeOpenRouter(raw: unknown): OpenRouterSettings {
 
 function mergeImage(raw: unknown): ImageSettings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<ImageSettings> & {
-    /** Back-compat: superseded by tagPrompts/activeTagPrompt. */
+    /** Back-compat legacy fields, superseded by the list/generation fields. */
     tagInstruction?: string
+    promptPrefix?: string
+    negativePrompt?: string
+    tagSystemPrompt?: string
+    tagTemperature?: number
+    tagDisableThinking?: boolean
   }
   const rawOverride = (r.tagModelOverride ?? {}) as Partial<TagModelOverride>
 
@@ -256,12 +283,94 @@ function mergeImage(raw: unknown): ImageSettings {
       ? r.activeTagPrompt
       : tagPrompts[0].name
 
+  // Prompt-prefix pairs: keep valid entries; otherwise migrate legacy promptPrefix/negativePrompt.
+  let promptPrefixes = Array.isArray(r.promptPrefixes)
+    ? r.promptPrefixes.filter(
+        (p): p is PromptPrefix =>
+          !!p &&
+          typeof p.name === 'string' &&
+          typeof p.positive === 'string' &&
+          typeof p.negative === 'string'
+      )
+    : []
+  if (promptPrefixes.length === 0) {
+    promptPrefixes = [
+      {
+        name: 'Default',
+        positive:
+          typeof r.promptPrefix === 'string'
+            ? r.promptPrefix
+            : DEFAULT_IMAGE.promptPrefixes[0].positive,
+        negative: typeof r.negativePrompt === 'string' ? r.negativePrompt : DEFAULT_NEGATIVE_PROMPT
+      }
+    ]
+  }
+  const activePromptPrefix =
+    typeof r.activePromptPrefix === 'string' &&
+    promptPrefixes.some((p) => p.name === r.activePromptPrefix)
+      ? r.activePromptPrefix
+      : promptPrefixes[0].name
+
+  // System prompts: keep valid entries; otherwise migrate the legacy single tagSystemPrompt.
+  let systemPrompts = Array.isArray(r.systemPrompts)
+    ? r.systemPrompts.filter(
+        (p): p is SystemPrompt => !!p && typeof p.name === 'string' && typeof p.text === 'string'
+      )
+    : []
+  if (systemPrompts.length === 0) {
+    systemPrompts = [
+      {
+        name: 'Default',
+        text: typeof r.tagSystemPrompt === 'string' ? r.tagSystemPrompt : DEFAULT_TAG_SYSTEM_PROMPT
+      }
+    ]
+  }
+  const activeSystemPrompt =
+    typeof r.activeSystemPrompt === 'string' &&
+    systemPrompts.some((p) => p.name === r.activeSystemPrompt)
+      ? r.activeSystemPrompt
+      : systemPrompts[0].name
+
+  // Dedicated image generation settings. When absent (legacy), seed temperature from the old
+  // tagTemperature and leave reasoning off (matching the old tagDisableThinking default).
+  const rawImgGen = (r.generation ?? {}) as Partial<GenerationSettings>
+  const hasStoredGen = !!r.generation && typeof r.generation === 'object'
+  const generation: GenerationSettings = {
+    ...DEFAULT_IMAGE.generation,
+    ...rawImgGen,
+    temperature:
+      typeof rawImgGen.temperature === 'number'
+        ? rawImgGen.temperature
+        : typeof r.tagTemperature === 'number'
+          ? r.tagTemperature
+          : DEFAULT_IMAGE.generation.temperature,
+    reasoning_level: hasStoredGen ? migrateReasoning(rawImgGen) : 'off'
+  }
+
+  // Drop superseded legacy scalar keys so they don't linger in the written JSON.
+  const rest: Record<string, unknown> = { ...r }
+  for (const k of [
+    'promptPrefix',
+    'negativePrompt',
+    'tagSystemPrompt',
+    'tagTemperature',
+    'tagDisableThinking',
+    'tagInstruction'
+  ]) {
+    delete rest[k]
+  }
+
   return {
     ...DEFAULT_IMAGE,
-    ...r,
+    ...(rest as Partial<ImageSettings>),
     appearanceSource: r.appearanceSource === 'appearance' ? 'appearance' : 'description',
+    promptPrefixes,
+    activePromptPrefix,
+    systemPrompts,
+    activeSystemPrompt,
     tagPrompts,
     activeTagPrompt,
+    generation,
     customPlaceholders: Array.isArray(r.customPlaceholders)
       ? r.customPlaceholders.filter(
           (p): p is CustomPlaceholder =>

@@ -5,7 +5,6 @@ import { useTheme, THEMES } from '../stores/theme'
 import type { ProviderId } from '../types'
 import { ModelSelect } from './ModelSelect'
 import { GenerationSettingsPanel } from './GenerationSettings'
-import { ImageSettingsPanel } from './ImageSettings'
 import { OpenRouterRouting } from './OpenRouterRouting'
 
 const PROVIDERS: { id: ProviderId; name: string }[] = [
@@ -190,8 +189,6 @@ export function Settings(): React.JSX.Element {
       <OpenRouterRouting />
 
       <GenerationSettingsPanel />
-
-      <ImageSettingsPanel />
     </div>
   )
 }

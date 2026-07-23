@@ -27,8 +27,10 @@ export function buildTagEntries(opts: {
   passageText: string
   /** Resolved text of the active tag prompt (the "scene instruction"). */
   tagInstruction: string
+  /** Resolved text of the active tagging system prompt. */
+  systemPrompt: string
 }): PromptEntry[] {
-  const { image, characters, passageText, tagInstruction } = opts
+  const { image, characters, passageText, tagInstruction, systemPrompt } = opts
   const parts: string[] = []
 
   // Character reference comes FIRST — before the task and the story passage — so the model
@@ -60,7 +62,7 @@ export function buildTagEntries(opts: {
   parts.push('Respond with ONLY the comma-separated list. Your entire reply must be the list.')
 
   return [
-    { role: 'system', content: image.tagSystemPrompt },
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: parts.join('\n\n') }
   ]
 }

@@ -4,6 +4,16 @@ import { useWorkspace } from '../stores/workspace'
 import type { ComfyObjectInfo, ImageSettings, ProviderId } from '../types'
 import { ModelSelect } from './ModelSelect'
 import { WorkflowEditor } from './WorkflowEditor'
+import { GenerationFields } from './GenerationSettings'
+
+/** Pick a name not already present, suffixing " 2", " 3", … on collision. */
+function uniqueName(existing: string[], base: string): string {
+  const names = new Set(existing)
+  if (!names.has(base)) return base
+  let n = 2
+  while (names.has(`${base} ${n}`)) n += 1
+  return `${base} ${n}`
+}
 
 const PROVIDERS: { id: ProviderId; name: string }[] = [
   { id: 'anthropic', name: 'Anthropic' },
@@ -72,35 +82,6 @@ function ComboField({
           <option key={o} value={o} />
         ))}
       </datalist>
-    </div>
-  )
-}
-
-function TextAreaField({
-  label,
-  value,
-  rows = 4,
-  onChange,
-  hint
-}: {
-  label: string
-  value: string
-  rows?: number
-  onChange: (v: string) => void
-  hint?: string
-}): React.JSX.Element {
-  return (
-    <div className="mb-4">
-      <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
-        {label}
-      </label>
-      <textarea
-        value={value}
-        rows={rows}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500"
-      />
-      {hint && <div className="text-xs text-ink-700 mt-1">{hint}</div>}
     </div>
   )
 }
@@ -260,6 +241,83 @@ export function ImageSettingsPanel(): React.JSX.Element {
     setDraft({
       ...draft,
       tagPrompts: draft.tagPrompts.map((p, i) => (i === activeIdx ? { ...p, text } : p))
+    })
+  }
+
+  // --- Prompt-prefix pairs (positive + negative; one active at a time) ---
+  const prefixIdx = Math.max(
+    0,
+    draft.promptPrefixes.findIndex((p) => p.name === draft.activePromptPrefix)
+  )
+  const activePrefix = draft.promptPrefixes[prefixIdx]
+  const addPromptPrefix = (): void => {
+    const name = uniqueName(
+      draft.promptPrefixes.map((p) => p.name),
+      'Prefix'
+    )
+    setDraft({
+      ...draft,
+      promptPrefixes: [
+        ...draft.promptPrefixes,
+        { name, positive: activePrefix?.positive ?? '', negative: activePrefix?.negative ?? '' }
+      ],
+      activePromptPrefix: name
+    })
+  }
+  const deletePromptPrefix = (): void => {
+    if (draft.promptPrefixes.length <= 1) return
+    const next = draft.promptPrefixes.filter((_, i) => i !== prefixIdx)
+    setDraft({ ...draft, promptPrefixes: next, activePromptPrefix: next[0].name })
+  }
+  const renameActivePrefix = (name: string): void => {
+    setDraft({
+      ...draft,
+      promptPrefixes: draft.promptPrefixes.map((p, i) => (i === prefixIdx ? { ...p, name } : p)),
+      activePromptPrefix: name
+    })
+  }
+  const setActivePrefixField = (field: 'positive' | 'negative', text: string): void => {
+    setDraft({
+      ...draft,
+      promptPrefixes: draft.promptPrefixes.map((p, i) =>
+        i === prefixIdx ? { ...p, [field]: text } : p
+      )
+    })
+  }
+
+  // --- System prompts (tagging system prompt; one active at a time) ---
+  const systemIdx = Math.max(
+    0,
+    draft.systemPrompts.findIndex((p) => p.name === draft.activeSystemPrompt)
+  )
+  const activeSystem = draft.systemPrompts[systemIdx]
+  const addSystemPrompt = (): void => {
+    const name = uniqueName(
+      draft.systemPrompts.map((p) => p.name),
+      'System prompt'
+    )
+    setDraft({
+      ...draft,
+      systemPrompts: [...draft.systemPrompts, { name, text: activeSystem?.text ?? '' }],
+      activeSystemPrompt: name
+    })
+  }
+  const deleteSystemPrompt = (): void => {
+    if (draft.systemPrompts.length <= 1) return
+    const next = draft.systemPrompts.filter((_, i) => i !== systemIdx)
+    setDraft({ ...draft, systemPrompts: next, activeSystemPrompt: next[0].name })
+  }
+  const renameActiveSystem = (name: string): void => {
+    setDraft({
+      ...draft,
+      systemPrompts: draft.systemPrompts.map((p, i) => (i === systemIdx ? { ...p, name } : p)),
+      activeSystemPrompt: name
+    })
+  }
+  const setActiveSystemText = (text: string): void => {
+    setDraft({
+      ...draft,
+      systemPrompts: draft.systemPrompts.map((p, i) => (i === systemIdx ? { ...p, text } : p))
     })
   }
 
@@ -433,20 +491,68 @@ export function ImageSettingsPanel(): React.JSX.Element {
         <NumField label="Clip skip" value={draft.clipSkip} onChange={(v) => set('clipSkip', v)} />
       </div>
 
-      {/* Prompt prefixes */}
-      <TextAreaField
-        label="Positive prompt prefix"
-        value={draft.promptPrefix}
-        rows={2}
-        onChange={(v) => set('promptPrefix', v)}
-        hint="Prepended to the generated tags before sending to ComfyUI."
-      />
-      <TextAreaField
-        label="Negative prompt"
-        value={draft.negativePrompt}
-        rows={2}
-        onChange={(v) => set('negativePrompt', v)}
-      />
+      {/* Prompt-prefix pairs — switch between "classes" of image generators (anime vs. realism) */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
+          Prompt prefix set (positive + negative)
+        </label>
+        <div className="flex gap-2 mb-2">
+          <select
+            value={activePrefix?.name ?? ''}
+            onChange={(e) => set('activePromptPrefix', e.target.value)}
+            className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
+          >
+            {draft.promptPrefixes.map((p, i) => (
+              <option key={i} value={p.name}>
+                {p.name || '(unnamed)'}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={addPromptPrefix}
+            className="rounded-md border border-ink-200 px-3 py-2 text-sm hover:bg-ink-100"
+          >
+            + New prefix set
+          </button>
+          <button
+            type="button"
+            onClick={deletePromptPrefix}
+            disabled={draft.promptPrefixes.length <= 1}
+            className="rounded-md border border-ink-200 px-3 py-2 text-sm text-ink-700 hover:bg-ink-100 disabled:opacity-50"
+          >
+            Delete
+          </button>
+        </div>
+        <input
+          type="text"
+          value={activePrefix?.name ?? ''}
+          onChange={(e) => renameActivePrefix(e.target.value)}
+          placeholder="Set name (e.g. Anime SDXL, Realism)"
+          className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-accent-500"
+        />
+        <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
+          Positive prompt prefix
+        </label>
+        <textarea
+          value={activePrefix?.positive ?? ''}
+          rows={2}
+          onChange={(e) => setActivePrefixField('positive', e.target.value)}
+          className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm resize-y mb-1 focus:outline-none focus:ring-2 focus:ring-accent-500"
+        />
+        <div className="text-xs text-ink-700 mb-3">
+          Prepended to the generated tags before sending to ComfyUI.
+        </div>
+        <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
+          Negative prompt
+        </label>
+        <textarea
+          value={activePrefix?.negative ?? ''}
+          rows={2}
+          onChange={(e) => setActivePrefixField('negative', e.target.value)}
+          className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500"
+        />
+      </div>
 
       {/* Tag generation prompts */}
       <div className="mt-4 pt-4 border-t border-ink-200">
@@ -473,12 +579,52 @@ export function ImageSettingsPanel(): React.JSX.Element {
           </div>
         </div>
 
-        <TextAreaField
-          label="Tag system prompt"
-          value={draft.tagSystemPrompt}
-          rows={8}
-          onChange={(v) => set('tagSystemPrompt', v)}
-        />
+        <div className="mb-4">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
+            Tag system prompt
+          </label>
+          <div className="flex gap-2 mb-2">
+            <select
+              value={activeSystem?.name ?? ''}
+              onChange={(e) => set('activeSystemPrompt', e.target.value)}
+              className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm bg-surface"
+            >
+              {draft.systemPrompts.map((p, i) => (
+                <option key={i} value={p.name}>
+                  {p.name || '(unnamed)'}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={addSystemPrompt}
+              className="rounded-md border border-ink-200 px-3 py-2 text-sm hover:bg-ink-100"
+            >
+              + New system prompt
+            </button>
+            <button
+              type="button"
+              onClick={deleteSystemPrompt}
+              disabled={draft.systemPrompts.length <= 1}
+              className="rounded-md border border-ink-200 px-3 py-2 text-sm text-ink-700 hover:bg-ink-100 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+          <input
+            type="text"
+            value={activeSystem?.name ?? ''}
+            onChange={(e) => renameActiveSystem(e.target.value)}
+            placeholder="System prompt name (e.g. SDXL, Pony, Illustrious)"
+            className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
+          <textarea
+            value={activeSystem?.text ?? ''}
+            rows={8}
+            onChange={(e) => setActiveSystemText(e.target.value)}
+            className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
+        </div>
 
         <div className="mb-4">
           <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
@@ -526,28 +672,16 @@ export function ImageSettingsPanel(): React.JSX.Element {
             className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <NumField
-            label="Tagging temperature"
-            value={draft.tagTemperature}
-            onChange={(v) => set('tagTemperature', v)}
-            step={0.05}
-            min={0}
-          />
-        </div>
-        <div className="mb-4">
-          <Toggle
-            label="Disable thinking for tagging (faster)"
-            checked={draft.tagDisableThinking}
-            onChange={(v) => set('tagDisableThinking', v)}
-          />
-          <div className="text-xs text-ink-700 mt-1">
-            Tagging is a quick classification — skipping reasoning makes it faster. Off lets tagging
-            use the workspace reasoning level. (For DeepSeek, reasoning is set by model choice —
-            pick a non-reasoning model to skip it.)
+        <div className="mt-4 pt-4 border-t border-ink-200">
+          <div className="font-medium text-ink-900 mb-1">Tagging model settings</div>
+          <div className="text-xs text-ink-700 mb-3">
+            Dedicated generation settings for the tagging LLM call — image tagging no longer
+            inherits the base model&apos;s settings. Reasoning <strong>off</strong> keeps tagging
+            fast.
           </div>
+          <GenerationFields value={draft.generation} onChange={(g) => set('generation', g)} />
         </div>
-        <div className="rounded-md border border-ink-200 bg-ink-50 p-3">
+        <div className="mt-4 rounded-md border border-ink-200 bg-ink-50 p-3">
           <Toggle
             label="Use a different model for tagging"
             checked={draft.tagModelOverride.enabled}

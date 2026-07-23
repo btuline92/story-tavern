@@ -17,7 +17,6 @@ import {
 } from '../lib/imagePrompt'
 import { readWorkflow } from '../lib/comfyWorkflows'
 import { submitAndFetchImage } from '../lib/comfyClient'
-import type { GenerationSettings } from './workspace'
 import type { ProviderId } from './providers'
 
 export type ImagePhase = 'tagging' | 'generating' | 'saving'
@@ -93,30 +92,34 @@ export function registerImageIpc(): void {
             .map((c) => c.name)
             .filter((n) => n && n.trim())
             .join(' and ') || 'the character'
-        const tagInstruction = (activePrompt?.text ?? '')
-          .replace(/\{\{char\}\}/g, charNames)
-          .replace(/\{\{user\}\}/g, 'the protagonist')
-        const entries = buildTagEntries({ image, characters, passageText, tagInstruction })
-        const disableThinking = image.tagDisableThinking
-        // Inherit the workspace LLM settings for tagging; the ONLY sampling override is
-        // temperature (tagTemperature). Reasoning is controlled separately by the tag-thinking
-        // toggle. Previously we clobbered top_p/top_k/penalties/etc. with defaults, which lost
-        // the user's configured values (e.g. sent top_p=1 instead of the settings' 0.95).
-        const tagGen: GenerationSettings = {
-          ...settings.generation,
-          temperature: image.tagTemperature,
-          reasoning_level: disableThinking ? 'off' : settings.generation.reasoning_level
-        }
+        const interp = (s: string): string =>
+          s.replace(/\{\{char\}\}/g, charNames).replace(/\{\{user\}\}/g, 'the protagonist')
+        const tagInstruction = interp(activePrompt?.text ?? '')
+        // Resolve the active system prompt (falls back to the first entry).
+        const activeSystem =
+          image.systemPrompts.find((p) => p.name === image.activeSystemPrompt) ??
+          image.systemPrompts[0]
+        const systemPrompt = interp(activeSystem?.text ?? '')
+        const entries = buildTagEntries({
+          image,
+          characters,
+          passageText,
+          tagInstruction,
+          systemPrompt
+        })
 
+        // Image tagging uses its OWN dedicated generation settings (full hyperparameters +
+        // reasoning) — it no longer inherits the base model's. When reasoning is off, also
+        // actively suppress it where the provider supports that (OpenRouter/OpenAI o-series).
         let tagError: string | null = null
         const metrics = await streamContinue(
           {
             provider,
             model,
             apiKey,
-            generation: tagGen,
+            generation: image.generation,
             entries,
-            disableReasoning: disableThinking,
+            disableReasoning: image.generation.reasoning_level === 'off',
             openrouter: settings.openrouter
           },
           ctrl.signal,
@@ -162,9 +165,12 @@ export function registerImageIpc(): void {
         // tags in the reference block), so we don't prepend appearance globally — that would
         // detach it from the character's phrase in a multi-character scene. We do roll every
         // character's negative tags into the shared negative prompt.
-        const positive = combineTags(image.promptPrefix, tags)
+        const activePrefix =
+          image.promptPrefixes.find((p) => p.name === image.activePromptPrefix) ??
+          image.promptPrefixes[0]
+        const positive = combineTags(activePrefix?.positive ?? '', tags)
         const negative = combineTags(
-          image.negativePrompt,
+          activePrefix?.negative ?? '',
           ...characters.map((c) => readCharacterImageTags(c).negative_tags ?? '')
         )
         const seed =
