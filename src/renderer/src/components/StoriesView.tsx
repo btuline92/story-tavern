@@ -96,6 +96,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const [saving, setSaving] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [outlineDialogOpen, setOutlineDialogOpen] = useState(false)
+  const [copiedText, setCopiedText] = useState(false)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const streamScrollRef = useRef<HTMLDivElement | null>(null)
   // Tracks which chapter id we've initialized drafts for. Only changes drive a re-init.
@@ -207,6 +208,23 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const proseTail = (): string => {
     const prose = contentDraft.replace(IMAGE_MARKER_RE, '').trim()
     return prose.slice(-1500)
+  }
+
+  // Chapter prose with inline image markers stripped — for the Copy text button.
+  const plainChapterText = contentDraft
+    .replace(IMAGE_MARKER_RE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  const onCopyText = (): void => {
+    if (!plainChapterText) return
+    navigator.clipboard
+      .writeText(plainChapterText)
+      .then(() => {
+        setCopiedText(true)
+        setTimeout(() => setCopiedText(false), 1500)
+      })
+      .catch(() => {})
   }
 
   const onGenerateImage = async (): Promise<void> => {
@@ -333,6 +351,15 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
           <div className="text-xs text-ink-700 whitespace-nowrap">
             {wordCount(contentDraft)} words {saving ? '• saving…' : dirty ? '• unsaved' : '• saved'}
           </div>
+          <button
+            type="button"
+            onClick={onCopyText}
+            disabled={!plainChapterText}
+            title="Copy this chapter's text (without images) to the clipboard"
+            className="rounded-md border border-ink-200 px-3 py-1.5 text-sm hover:bg-ink-100 disabled:opacity-50"
+          >
+            {copiedText ? 'Copied!' : 'Copy text'}
+          </button>
           <button
             type="button"
             onClick={() => setDetailsOpen((v) => !v)}
