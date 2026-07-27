@@ -245,9 +245,48 @@ export interface OpenAIMessage {
   content: string
 }
 
-/** OpenAI-compatible: system messages can appear inline; pass entries through. */
-export function toOpenAI(entries: PromptEntry[]): OpenAIMessage[] {
-  const messages = entries.map((e) => ({ role: e.role, content: e.content }))
+/** Merge consecutive same-role messages (any role), joining their content. */
+function mergeConsecutiveAny(messages: OpenAIMessage[]): OpenAIMessage[] {
+  const out: OpenAIMessage[] = []
+  for (const m of messages) {
+    const last = out[out.length - 1]
+    if (last && last.role === m.role) last.content += '\n\n' + m.content
+    else out.push({ ...m })
+  }
+  return out
+}
+
+/**
+ * OpenAI-compatible serialization (OpenAI, DeepSeek, and OpenRouter).
+ *
+ * Consecutive same-role messages are always merged. When `hoistSystem` is set (OpenRouter, which
+ * routinely routes to Claude on Vertex), ALL system entries are additionally collapsed into one
+ * leading system message with the user/assistant turns after it. Claude via Vertex rejects any
+ * inline `system` message that follows an `assistant` turn (or another `system`) — e.g. a plugin
+ * or beat directive placed after a preset's assistant "prefill" block. OpenRouter lifts the single
+ * leading system into the top-level system param, so no inline system remains — matching how the
+ * native Anthropic path (toAnthropic) already serializes. Direct OpenAI/DeepSeek (hoistSystem off)
+ * keep inline system messages, which those APIs accept, so their behavior is unchanged.
+ */
+export function toOpenAI(
+  entries: PromptEntry[],
+  opts: { hoistSystem?: boolean } = {}
+): OpenAIMessage[] {
+  if (opts.hoistSystem) {
+    const systemText = entries
+      .filter((e) => e.role === 'system')
+      .map((e) => e.content)
+      .join('\n\n')
+    let convo = mergeConsecutiveAny(
+      entries.filter((e) => e.role !== 'system').map((e) => ({ role: e.role, content: e.content }))
+    )
+    // The first non-system turn must be a user message for the Anthropic backend.
+    if (convo.length === 0 || convo[0].role !== 'user') {
+      convo = mergeConsecutiveAny([{ role: 'user', content: 'Continue the story.' }, ...convo])
+    }
+    return systemText ? [{ role: 'system', content: systemText }, ...convo] : convo
+  }
+  const messages = mergeConsecutiveAny(entries.map((e) => ({ role: e.role, content: e.content })))
   // Ensure there's at least one user message so the model has a turn to respond to.
   if (!messages.some((m) => m.role === 'user')) {
     messages.push({ role: 'user', content: 'Continue the story.' })

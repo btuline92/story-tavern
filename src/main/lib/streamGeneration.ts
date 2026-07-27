@@ -140,7 +140,9 @@ function openAICompatRequest(
   req: StreamRequest,
   options: { provider: 'openai' | 'openrouter' | 'deepseek'; extraHeaders?: Record<string, string> }
 ): { url: string; init: RequestInit; body: string } {
-  const messages = toOpenAI(req.entries)
+  // OpenRouter commonly routes to Claude on Vertex, which rejects inline system messages that
+  // follow an assistant/system turn — hoist all system content into one leading system message.
+  const messages = toOpenAI(req.entries, { hoistSystem: options.provider === 'openrouter' })
   const body: Record<string, unknown> = {
     model: req.model,
     messages,
