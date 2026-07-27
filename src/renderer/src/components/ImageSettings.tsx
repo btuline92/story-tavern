@@ -5,6 +5,7 @@ import type { ComfyObjectInfo, ImageSettings, ProviderId } from '../types'
 import { ModelSelect } from './ModelSelect'
 import { WorkflowEditor } from './WorkflowEditor'
 import { GenerationFields } from './GenerationSettings'
+import { askConfirm } from '../stores/dialog'
 
 /** Pick a name not already present, suffixing " 2", " 3", … on collision. */
 function uniqueName(existing: string[], base: string): string {
@@ -184,7 +185,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
 
   const onDeleteWorkflow = async (): Promise<void> => {
     if (!draft.workflow) return
-    if (!confirm(`Delete workflow "${draft.workflow}"?`)) return
+    if (!(await askConfirm(`Delete workflow "${draft.workflow}"?`))) return
     const list = await window.api.comfy.deleteWorkflow(workspace, draft.workflow)
     setWorkflows(list)
     if (!list.includes(draft.workflow)) set('workflow', list[0] ?? '')

@@ -3,6 +3,7 @@ import { useCharacters } from '../stores/characters'
 import { useStories } from '../stores/stories'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
+import { askConfirm, showAlert } from '../stores/dialog'
 import { NewStoryDialog } from './NewStoryDialog'
 import { StoryDetailsPanel } from './StoryDetailsPanel'
 import { ChapterDocument } from './ChapterDocument'
@@ -229,7 +230,8 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
 
   const onClearChapter = async (): Promise<void> => {
     if (!chapter || !contentDraft.trim()) return
-    if (!confirm('Clear all text and images from this chapter? This cannot be undone.')) return
+    if (!(await askConfirm('Clear all text and images from this chapter? This cannot be undone.')))
+      return
     setContentDraft('')
     await updateChapter(workspace, chapter.number, { content: '' })
   }
@@ -243,7 +245,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const onMagicComplete = async (): Promise<void> => {
     if (!chapter) return
     if (!outlineDraft.trim()) {
-      alert(
+      await showAlert(
         'Add a chapter outline first. Magic Complete breaks the outline into story beats and writes each one in turn.'
       )
       return
@@ -251,7 +253,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     const note = imageEnabled
       ? 'It breaks this chapter’s outline into story beats, then writes each beat as its own passage with an inline image after it.'
       : 'It breaks this chapter’s outline into story beats, then writes each beat as its own passage. Image generation is off, so no images will be added.'
-    const ok = confirm(
+    const ok = await askConfirm(
       `Magic Complete this chapter?\n\n${note}\n\nThis can take a while and locks the editor until it finishes or you press Stop.`
     )
     if (!ok) return
@@ -263,7 +265,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const onRegenerate = async (): Promise<void> => {
     if (!lastGen) return
     if (contentDraft !== lastGen.after) {
-      const ok = confirm(
+      const ok = await askConfirm(
         'Regenerate will discard the last generated passage and try again. Any edits you made to it will be lost. Continue?'
       )
       if (!ok) return
@@ -272,7 +274,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   }
 
   const onDelete = async (): Promise<void> => {
-    if (confirm(`Delete the story "${active.meta.title}" and all its chapters?`)) {
+    if (await askConfirm(`Delete the story "${active.meta.title}" and all its chapters?`)) {
       await remove(workspace, active.meta.id)
     }
   }
@@ -321,7 +323,11 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
                   title="Delete chapter"
                   disabled={busy}
                   onClick={async () => {
-                    if (confirm(`Delete "${c.title}" and all its text? This cannot be undone.`)) {
+                    if (
+                      await askConfirm(
+                        `Delete "${c.title}" and all its text? This cannot be undone.`
+                      )
+                    ) {
                       await deleteChapter(workspace, c.number)
                     }
                   }}
@@ -697,7 +703,7 @@ export function StoriesView(): React.JSX.Element {
                       type="button"
                       onClick={async () => {
                         if (
-                          confirm(
+                          await askConfirm(
                             `Delete "${active.meta.title ?? 'this story'}" and all its files?`
                           )
                         ) {
@@ -759,7 +765,7 @@ export function StoriesView(): React.JSX.Element {
                   title="Delete story"
                   onClick={async (e) => {
                     e.stopPropagation()
-                    if (confirm(`Delete "${s.title || s.slug}" and all its chapters?`)) {
+                    if (await askConfirm(`Delete "${s.title || s.slug}" and all its chapters?`)) {
                       await remove(workspace, s.id)
                     }
                   }}

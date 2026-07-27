@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePlugins } from '../stores/plugins'
 import { useWorkspace } from '../stores/workspace'
+import { askConfirm } from '../stores/dialog'
 
 interface Draft {
   name: string
@@ -49,8 +50,9 @@ export function PluginsView(): React.JSX.Element {
       setSaving(false)
     }
   }
-  const onDelete = (): void => {
-    if (selected && confirm(`Delete plugin "${selected.name}"?`)) remove(workspace, selected.id)
+  const onDelete = async (): Promise<void> => {
+    if (selected && (await askConfirm(`Delete plugin "${selected.name}"?`)))
+      remove(workspace, selected.id)
   }
   const onDiscard = (): void => {
     if (selected) setDraft({ name: selected.name, content: selected.content })

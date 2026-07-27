@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePresets } from '../stores/presets'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
+import { askConfirm } from '../stores/dialog'
 import type { BlockRole, MarkerType, Preset, PromptBlock } from '../types'
 
 const MARKER_LABELS: Record<MarkerType, string> = {
@@ -207,7 +208,7 @@ function PresetEditor({
   }
 
   const onDelete = async (): Promise<void> => {
-    if (!confirm(`Delete preset "${preset.name}"?`)) return
+    if (!(await askConfirm(`Delete preset "${preset.name}"?`))) return
     if (isActive) await setActivePresetId(workspace, null)
     await deletePreset(workspace, preset.id)
   }

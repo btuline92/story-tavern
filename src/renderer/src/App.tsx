@@ -11,6 +11,7 @@ import { PluginsView } from './components/PluginsView'
 import { StoriesView } from './components/StoriesView'
 import { LogsView } from './components/LogsView'
 import { ImageSettingsPanel } from './components/ImageSettings'
+import { AppDialogs } from './components/AppDialogs'
 
 type View = 'stories' | 'characters' | 'presets' | 'plugins' | 'images' | 'logs' | 'settings'
 
@@ -167,6 +168,7 @@ function App(): React.JSX.Element {
           <Settings />
         </main>
       )}
+      <AppDialogs />
     </div>
   )
 }

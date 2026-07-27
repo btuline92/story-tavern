@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -13,6 +13,11 @@ import { registerLogsIpc } from './ipc/logs'
 import { registerComfyIpc } from './ipc/comfy'
 import { registerImageIpc } from './ipc/image'
 import { registerPluginsIpc } from './ipc/plugins'
+
+// TEMPORARY: print renderer focus diagnostics forwarded from the preload debug channel.
+ipcMain.on('debug:log', (_e, message: string) => {
+  console.log(message)
+})
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -38,6 +43,25 @@ function createWindow(): void {
   // input reliably, and is a harmless no-op the rest of the time.
   mainWindow.on('focus', () => {
     if (!mainWindow.isDestroyed()) mainWindow.webContents.focus()
+  })
+
+  // TEMPORARY: surface renderer console warnings/errors in the terminal so React state-revert
+  // warnings (if any) show up while diagnosing the input-lockout bug. Handles both the newer
+  // details-object signature and the older positional one.
+  mainWindow.webContents.on('console-message', (...args: unknown[]) => {
+    const d = args[1]
+    let level: unknown
+    let message: unknown
+    if (d && typeof d === 'object' && 'message' in d) {
+      level = (d as { level?: unknown }).level
+      message = (d as { message?: unknown }).message
+    } else {
+      level = args[1]
+      message = args[2]
+    }
+    const isWarnErr = level === 'warning' || level === 'error' || level === 2 || level === 3
+    if (isWarnErr && typeof message === 'string')
+      console.log(`[renderer:${String(level)}] ${message}`)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

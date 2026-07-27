@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { useWorkspace } from '../stores/workspace'
+import { askConfirm } from '../stores/dialog'
 import type { Character } from '../types'
 
 interface DraftFields {
@@ -339,8 +340,10 @@ export function CharacterDetail(): React.JSX.Element {
     if (path) setExportNotice(`Exported to ${path}`)
   }
 
-  const onDelete = (): void => {
-    if (confirm(`Delete "${character.name}"? This removes the markdown file and avatar.`)) {
+  const onDelete = async (): Promise<void> => {
+    if (
+      await askConfirm(`Delete "${character.name}"? This removes the markdown file and avatar.`)
+    ) {
       remove(workspace, character.id)
     }
   }

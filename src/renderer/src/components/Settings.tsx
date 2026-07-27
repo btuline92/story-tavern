@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
 import { useTheme, THEMES } from '../stores/theme'
+import { askConfirm } from '../stores/dialog'
 import type { ProviderId } from '../types'
 import { ModelSelect } from './ModelSelect'
 import { GenerationSettingsPanel } from './GenerationSettings'
@@ -52,7 +53,7 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
   }
 
   const onDelete = async (): Promise<void> => {
-    if (confirm(`Remove the saved ${name} API key from this machine?`)) {
+    if (await askConfirm(`Remove the saved ${name} API key from this machine?`)) {
       await deleteKey(provider)
       setResult(null)
     }

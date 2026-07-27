@@ -419,6 +419,10 @@ const api = {
     onProgress: (handler: (genId: string, phase: ImagePhase) => void): (() => void) =>
       subscribe<[string, ImagePhase]>('image:progress', handler)
   },
+  debug: {
+    // TEMPORARY: forward renderer focus diagnostics to the main-process terminal.
+    log: (message: string): void => ipcRenderer.send('debug:log', message)
+  },
   logs: {
     listRecent: (workspace: string, limit?: number): Promise<ApiLogEntry[]> =>
       ipcRenderer.invoke('logs:list-recent', workspace, limit),
