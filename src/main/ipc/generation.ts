@@ -62,7 +62,7 @@ function buildBeatPlanEntries(args: {
   return [system, { role: 'user', content: parts.join('\n\n') }]
 }
 
-/** How many beats each suggested chapter outline should contain. */
+/** Default number of beats per suggested chapter outline (configurable per request). */
 const OUTLINE_BEATS = 8
 
 /** Build the prompt that asks the model for four distinct candidate outlines for the next chapter. */
@@ -71,8 +71,9 @@ function buildOutlineSuggestEntries(args: {
   chapter: Chapter
   characters: TavernV2Data[]
   guidance: string
+  beats: number
 }): PromptEntry[] {
-  const { story, chapter, characters, guidance } = args
+  const { story, chapter, characters, guidance, beats } = args
   const charLines = characters
     .map((c) => {
       const name = c.name?.trim() || 'Character'
@@ -100,13 +101,13 @@ function buildOutlineSuggestEntries(args: {
     content:
       'You are a story-planning assistant. You propose possible outlines for a chapter of a story.\n\n' +
       'Generate FOUR distinct candidate outlines. Requirements:\n' +
-      `- Each outline is exactly ${OUTLINE_BEATS} story beats, one concise sentence per beat.\n` +
+      `- Each outline is exactly ${beats} story beats, one concise sentence per beat.\n` +
       '- A beat is one step of the chapter — an action, turn, revelation, or emotional shift.\n' +
       '- NSFW Content is allowed.\n' +
       '- The four outlines must be meaningfully different from one another: different directions, pacing, ' +
       'or emphasis — not four rewordings of the same plot.\n' +
       '- All four must be consistent with the premise, the characters, and everything in earlier chapters.\n' +
-      `- Respond with ONLY a JSON array of 4 arrays, each inner array containing exactly ${OUTLINE_BEATS} short ` +
+      `- Respond with ONLY a JSON array of 4 arrays, each inner array containing exactly ${beats} short ` +
       'beat strings. No prose, no keys, no markdown fences. ' +
       'Example: [["…","…"],["…","…"],["…","…"],["…","…"]]'
   }
@@ -132,7 +133,7 @@ function buildOutlineSuggestEntries(args: {
 }
 
 /** Parse four candidate outlines (each an array of beat strings) from the model's JSON response. */
-function parseOutlines(text: string): string[][] {
+function parseOutlines(text: string, maxBeats: number): string[][] {
   const t = (text ?? '').trim()
   const start = t.indexOf('[')
   const end = t.lastIndexOf(']')
@@ -162,7 +163,7 @@ function parseOutlines(text: string): string[][] {
         .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
         .filter(Boolean)
     }
-    if (beats.length) outlines.push(beats.slice(0, 12))
+    if (beats.length) outlines.push(beats.slice(0, maxBeats))
   }
   return outlines.slice(0, 4)
 }
@@ -400,7 +401,8 @@ export function registerGenerationIpc(): void {
       workspace: string,
       storyId: string,
       chapterNumber: number,
-      guidance?: string
+      guidance?: string,
+      beatCount?: number
     ): Promise<{ outlines: string[][] } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
       const provider: ProviderId = settings.selectedProvider
@@ -413,12 +415,15 @@ export function registerGenerationIpc(): void {
       const chapter = story.chapters.find((c) => c.number === chapterNumber)
       if (!chapter) return { error: `Chapter ${chapterNumber} not found` }
 
+      // Clamp the requested beat count to a sane range; default to OUTLINE_BEATS.
+      const beats = Math.min(20, Math.max(1, Math.round(beatCount ?? OUTLINE_BEATS)))
       const characters = await readCharactersData(workspace, story.meta.character_ids)
       const entries = buildOutlineSuggestEntries({
         story,
         chapter,
         characters,
-        guidance: guidance ?? ''
+        guidance: guidance ?? '',
+        beats
       })
 
       const ctrl = new AbortController()
@@ -463,7 +468,7 @@ export function registerGenerationIpc(): void {
         return { error: `Outline suggestion failed: ${genError ?? metrics.error}` }
       }
 
-      const outlines = parseOutlines(metrics.fullText)
+      const outlines = parseOutlines(metrics.fullText, beats + 4)
       if (outlines.length === 0) return { error: 'The model returned no usable outlines.' }
       return { outlines }
     }

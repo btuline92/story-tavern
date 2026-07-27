@@ -368,14 +368,16 @@ const api = {
       workspace: string,
       storyId: string,
       chapterNumber: number,
-      guidance?: string
+      guidance?: string,
+      beatCount?: number
     ): Promise<{ outlines: string[][] } | { error: string }> =>
       ipcRenderer.invoke(
         'generation:suggest-outlines',
         workspace,
         storyId,
         chapterNumber,
-        guidance
+        guidance,
+        beatCount
       ),
     cancel: (streamId: string): Promise<boolean> =>
       ipcRenderer.invoke('generation:cancel', streamId),

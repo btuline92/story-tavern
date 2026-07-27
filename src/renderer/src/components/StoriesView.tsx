@@ -227,6 +227,13 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
       .catch(() => {})
   }
 
+  const onClearChapter = async (): Promise<void> => {
+    if (!chapter || !contentDraft.trim()) return
+    if (!confirm('Clear all text and images from this chapter? This cannot be undone.')) return
+    setContentDraft('')
+    await updateChapter(workspace, chapter.number, { content: '' })
+  }
+
   const onGenerateImage = async (): Promise<void> => {
     if (!chapter) return
     await flushSave()
@@ -359,6 +366,15 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             className="rounded-md border border-ink-200 px-3 py-1.5 text-sm hover:bg-ink-100 disabled:opacity-50"
           >
             {copiedText ? 'Copied!' : 'Copy text'}
+          </button>
+          <button
+            type="button"
+            onClick={onClearChapter}
+            disabled={busy || !contentDraft.trim()}
+            title="Delete all text and images in this chapter (keeps the title and outline)"
+            className="rounded-md border border-ink-200 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
+          >
+            Clear
           </button>
           <button
             type="button"

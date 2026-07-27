@@ -24,13 +24,17 @@ export function OutlineSuggestDialog({
   onApply
 }: Props): React.JSX.Element | null {
   const [guidance, setGuidance] = useState('')
+  const [beatCount, setBeatCount] = useState(8)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [outlines, setOutlines] = useState<string[][]>([])
 
   useEffect(() => {
     if (open) {
+      // Reset all dialog state each time it opens (beat count reverts to the default of 8).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGuidance('')
+      setBeatCount(8)
       setError(null)
       setOutlines([])
       setLoading(false)
@@ -47,7 +51,8 @@ export function OutlineSuggestDialog({
         workspace,
         storyId,
         chapterNumber,
-        guidance.trim() || undefined
+        guidance.trim() || undefined,
+        beatCount
       )
       if ('error' in result) {
         setError(result.error)
@@ -71,8 +76,8 @@ export function OutlineSuggestDialog({
         <div className="border-b border-ink-200 px-6 py-4">
           <h3 className="text-xl font-semibold text-ink-900">Suggest chapter outline</h3>
           <p className="mt-1 text-sm text-ink-700">
-            Generates four possible outlines, each about 8 beats. Pick one to fill the chapter
-            outline — you can edit it afterward.
+            Generates four possible outlines, each about {beatCount} beats. Pick one to fill the
+            chapter outline — you can edit it afterward.
           </p>
         </div>
 
@@ -95,8 +100,27 @@ export function OutlineSuggestDialog({
               disabled={loading}
               className="rounded-md bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600 disabled:opacity-50"
             >
-              {loading ? 'Generating…' : outlines.length > 0 ? '↻ Regenerate' : '✨ Generate outlines'}
+              {loading
+                ? 'Generating…'
+                : outlines.length > 0
+                  ? '↻ Regenerate'
+                  : '✨ Generate outlines'}
             </button>
+            <label className="flex items-center gap-2 text-xs text-ink-700">
+              Beats per outline
+              <input
+                type="number"
+                value={beatCount}
+                min={1}
+                max={20}
+                step={1}
+                disabled={loading}
+                onChange={(e) =>
+                  setBeatCount(Math.min(20, Math.max(1, Math.round(Number(e.target.value) || 8))))
+                }
+                className="w-16 rounded-md border border-ink-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-50"
+              />
+            </label>
             {loading && (
               <span className="flex items-center gap-2 text-xs text-accent-600">
                 <span className="inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse" />
