@@ -105,6 +105,16 @@ export interface OpenRouterSettings {
   allowFallbacks: boolean
 }
 
+/** A named model configuration — provider, model id, and its own generation settings. The active
+ *  one drives all story/character generation and the image-tagging base model. */
+export interface ModelPreset {
+  id: string
+  name: string
+  provider: ProviderId
+  model: string
+  generation: GenerationSettings
+}
+
 export interface WorkspaceSettings {
   selectedProvider: ProviderId
   models: Record<ProviderId, string>
@@ -112,6 +122,9 @@ export interface WorkspaceSettings {
   generation: GenerationSettings
   image: ImageSettings
   openrouter: OpenRouterSettings
+  /** Named model configs; `activeModelPresetId` selects the one used for generation. */
+  modelPresets: ModelPreset[]
+  activeModelPresetId: string | null
 }
 
 const DEFAULT_GENERATION: GenerationSettings = {
@@ -397,6 +410,14 @@ function migrateReasoning(raw: unknown): ReasoningLevel {
   return 'off'
 }
 
+const DEFAULT_MODEL_PRESET: ModelPreset = {
+  id: 'default',
+  name: 'Default',
+  provider: 'anthropic',
+  model: defaultModelFor('anthropic'),
+  generation: { ...DEFAULT_GENERATION }
+}
+
 const DEFAULT_SETTINGS: WorkspaceSettings = {
   selectedProvider: 'anthropic',
   models: {
@@ -408,27 +429,92 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   activePresetId: null,
   generation: { ...DEFAULT_GENERATION },
   image: { ...DEFAULT_IMAGE },
-  openrouter: { ...DEFAULT_OPENROUTER }
+  openrouter: { ...DEFAULT_OPENROUTER },
+  modelPresets: [{ ...DEFAULT_MODEL_PRESET, generation: { ...DEFAULT_GENERATION } }],
+  activeModelPresetId: 'default'
+}
+
+/** Deep-copy the default model-preset list so callers can't mutate shared references. */
+function cloneModelPresets(presets: ModelPreset[]): ModelPreset[] {
+  return presets.map((p) => ({ ...p, generation: { ...p.generation } }))
+}
+
+const PROVIDER_IDS: ProviderId[] = ['anthropic', 'openai', 'openrouter', 'deepseek']
+function coerceProvider(v: unknown): ProviderId {
+  return PROVIDER_IDS.includes(v as ProviderId) ? (v as ProviderId) : 'anthropic'
+}
+
+function mergeGeneration(raw: unknown): GenerationSettings {
+  const g = (raw ?? {}) as Partial<GenerationSettings>
+  return { ...DEFAULT_GENERATION, ...g, reasoning_level: migrateReasoning(g) }
+}
+
+/** The provider/model/generation the next LLM call should use, from the active model preset. */
+export function resolveActiveModel(settings: WorkspaceSettings): {
+  provider: ProviderId
+  model: string
+  generation: GenerationSettings
+} {
+  const presets = settings.modelPresets
+  const active = presets.find((p) => p.id === settings.activeModelPresetId) ?? presets[0]
+  return { provider: active.provider, model: active.model, generation: active.generation }
 }
 
 function mergeSettings(raw: unknown): WorkspaceSettings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<WorkspaceSettings> & {
     activePromptId?: string | null
   }
-  const rawGen = (r.generation ?? {}) as Partial<GenerationSettings>
-  const generation: GenerationSettings = {
-    ...DEFAULT_GENERATION,
-    ...rawGen,
-    reasoning_level: migrateReasoning(rawGen)
+  const generation = mergeGeneration(r.generation)
+  const selectedProvider = r.selectedProvider ?? DEFAULT_SETTINGS.selectedProvider
+  const models = { ...DEFAULT_SETTINGS.models, ...(r.models ?? {}) }
+
+  // Model presets: keep valid entries; otherwise seed a "Default" from the legacy single config so
+  // existing workspaces upgrade transparently.
+  let modelPresets: ModelPreset[] = Array.isArray(r.modelPresets)
+    ? r.modelPresets
+        .filter(
+          (p): p is ModelPreset =>
+            !!p &&
+            typeof p.id === 'string' &&
+            typeof p.name === 'string' &&
+            typeof p.model === 'string'
+        )
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          provider: coerceProvider(p.provider),
+          model: p.model,
+          generation: mergeGeneration(p.generation)
+        }))
+    : []
+  if (modelPresets.length === 0) {
+    const seedProvider = coerceProvider(selectedProvider)
+    modelPresets = [
+      {
+        id: 'default',
+        name: 'Default',
+        provider: seedProvider,
+        model: models[seedProvider] || defaultModelFor(seedProvider),
+        generation
+      }
+    ]
   }
+  const activeModelPresetId =
+    typeof r.activeModelPresetId === 'string' &&
+    modelPresets.some((p) => p.id === r.activeModelPresetId)
+      ? r.activeModelPresetId
+      : modelPresets[0].id
+
   return {
-    selectedProvider: r.selectedProvider ?? DEFAULT_SETTINGS.selectedProvider,
-    models: { ...DEFAULT_SETTINGS.models, ...(r.models ?? {}) },
+    selectedProvider,
+    models,
     // Back-compat: older settings used activePromptId.
     activePresetId: r.activePresetId ?? r.activePromptId ?? null,
     generation,
     image: mergeImage(r.image),
-    openrouter: mergeOpenRouter(r.openrouter)
+    openrouter: mergeOpenRouter(r.openrouter),
+    modelPresets,
+    activeModelPresetId
   }
 }
 
@@ -448,7 +534,11 @@ export async function readWorkspaceSettings(workspace: string): Promise<Workspac
   try {
     return mergeSettings(JSON.parse(await readFile(path, 'utf-8')))
   } catch {
-    return { ...DEFAULT_SETTINGS, models: { ...DEFAULT_SETTINGS.models } }
+    return {
+      ...DEFAULT_SETTINGS,
+      models: { ...DEFAULT_SETTINGS.models },
+      modelPresets: cloneModelPresets(DEFAULT_SETTINGS.modelPresets)
+    }
   }
 }
 

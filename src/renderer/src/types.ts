@@ -147,6 +147,14 @@ export interface OpenRouterSettings {
   allowFallbacks: boolean
 }
 
+export interface ModelPreset {
+  id: string
+  name: string
+  provider: ProviderId
+  model: string
+  generation: GenerationSettings
+}
+
 export interface WorkspaceSettings {
   selectedProvider: ProviderId
   models: Record<ProviderId, string>
@@ -154,6 +162,8 @@ export interface WorkspaceSettings {
   generation: GenerationSettings
   image: ImageSettings
   openrouter: OpenRouterSettings
+  modelPresets: ModelPreset[]
+  activeModelPresetId: string | null
 }
 
 export interface ComfyObjectInfo {
@@ -191,6 +201,7 @@ export interface Chapter {
   title: string
   outline: string
   content: string
+  model_preset_id: string | null
   created_at: string
   updated_at: string
 }

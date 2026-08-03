@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ulid } from 'ulid'
 import { getKey } from '../lib/safeStore'
-import { readWorkspaceSettings } from './workspace'
+import { readWorkspaceSettings, resolveActiveModel } from './workspace'
 import { loadStory } from '../lib/storyStorage'
 import { streamContinue } from '../lib/streamGeneration'
 import { logApiCall } from '../lib/apiLogger'
@@ -73,8 +73,10 @@ export function registerImageIpc(): void {
       try {
         // --- 1. Tag the passage with the LLM ---
         progress('tagging')
-        let provider: ProviderId = settings.selectedProvider
-        let model = settings.models[provider]
+        // Base provider/model follow the active model preset; tagModelOverride can override.
+        const base = resolveActiveModel(settings)
+        let provider: ProviderId = base.provider
+        let model = base.model
         if (image.tagModelOverride.enabled && image.tagModelOverride.model) {
           provider = image.tagModelOverride.provider
           model = image.tagModelOverride.model

@@ -90,7 +90,7 @@ interface StoriesState {
   updateChapter: (
     workspace: string,
     chapterNumber: number,
-    patch: { title?: string; outline?: string; content?: string }
+    patch: { title?: string; outline?: string; content?: string; model_preset_id?: string | null }
   ) => Promise<Chapter>
   addChapter: (workspace: string) => Promise<void>
   /** Delete a chapter and its file. No-op on the last remaining chapter. If the deleted
@@ -280,6 +280,17 @@ export const useStories = create<StoriesState>((set, get) => ({
     if (!current || chapterNumber == null) return
     if (get().generating) return
     const ch = current.chapters.find((c) => c.number === chapterNumber)
+
+    // Remember which model preset this chapter was generated with (restored when reopened).
+    const activePresetId = useSettings.getState().settings?.activeModelPresetId ?? null
+    if (activePresetId && ch && ch.model_preset_id !== activePresetId) {
+      try {
+        await get().updateChapter(workspace, chapterNumber, { model_preset_id: activePresetId })
+      } catch {
+        /* non-fatal — remembering the model isn't critical to generation */
+      }
+    }
+
     set({
       generating: true,
       streamBuffer: '',

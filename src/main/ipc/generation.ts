@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { ulid } from 'ulid'
 import { getKey } from '../lib/safeStore'
-import { readWorkspaceSettings } from './workspace'
+import { readWorkspaceSettings, resolveActiveModel } from './workspace'
 import { loadStory } from '../lib/storyStorage'
 import { getPreset, defaultPreset } from '../lib/presetStore'
 import { assemble, stripImageMarkers, type PromptEntry } from '../lib/promptAssembly'
@@ -11,7 +11,6 @@ import { readCharactersData } from '../lib/characterData'
 import { getPluginsByIds } from '../lib/pluginStore'
 import type { TavernV2Data } from '../lib/tavernCard'
 import type { StoryWithChapters, Chapter } from '../lib/storyStorage'
-import type { ProviderId } from './providers'
 
 const activeStreams = new Map<string, AbortController>()
 
@@ -329,8 +328,7 @@ export function registerGenerationIpc(): void {
       beatTotal?: number
     ): Promise<{ streamId: string } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
-      const provider: ProviderId = settings.selectedProvider
-      const model = settings.models[provider]
+      const { provider, model, generation } = resolveActiveModel(settings)
       const apiKey = await getKey(provider)
       if (!apiKey) return { error: `No API key saved for ${provider}` }
 
@@ -388,7 +386,7 @@ export function registerGenerationIpc(): void {
               provider,
               model,
               apiKey,
-              generation: settings.generation,
+              generation,
               entries,
               openrouter: settings.openrouter
             },
@@ -450,8 +448,7 @@ export function registerGenerationIpc(): void {
       chapterNumber: number
     ): Promise<{ beats: string[] } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
-      const provider: ProviderId = settings.selectedProvider
-      const model = settings.models[provider]
+      const { provider, model, generation } = resolveActiveModel(settings)
       const apiKey = await getKey(provider)
       if (!apiKey) return { error: `No API key saved for ${provider}` }
 
@@ -477,7 +474,7 @@ export function registerGenerationIpc(): void {
           provider,
           model,
           apiKey,
-          generation: settings.generation,
+          generation,
           entries,
           openrouter: settings.openrouter
         },
@@ -529,8 +526,7 @@ export function registerGenerationIpc(): void {
       beatCount?: number
     ): Promise<{ outlines: string[][] } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
-      const provider: ProviderId = settings.selectedProvider
-      const model = settings.models[provider]
+      const { provider, model, generation } = resolveActiveModel(settings)
       const apiKey = await getKey(provider)
       if (!apiKey) return { error: `No API key saved for ${provider}` }
 
@@ -557,7 +553,7 @@ export function registerGenerationIpc(): void {
           provider,
           model,
           apiKey,
-          generation: settings.generation,
+          generation,
           entries,
           openrouter: settings.openrouter
         },
@@ -606,8 +602,7 @@ export function registerGenerationIpc(): void {
       prompt: string
     ): Promise<{ character: GeneratedCharacter } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
-      const provider: ProviderId = settings.selectedProvider
-      const model = settings.models[provider]
+      const { provider, model, generation } = resolveActiveModel(settings)
       const apiKey = await getKey(provider)
       if (!apiKey) return { error: `No API key saved for ${provider}` }
       if (!prompt || !prompt.trim()) return { error: 'Describe the character you want to create.' }
@@ -623,7 +618,7 @@ export function registerGenerationIpc(): void {
             provider,
             model,
             apiKey,
-            generation: settings.generation,
+            generation,
             entries,
             openrouter: settings.openrouter
           },

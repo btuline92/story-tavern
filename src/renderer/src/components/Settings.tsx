@@ -5,7 +5,7 @@ import { useTheme, THEMES } from '../stores/theme'
 import { askConfirm } from '../stores/dialog'
 import type { ProviderId } from '../types'
 import { ModelSelect } from './ModelSelect'
-import { GenerationSettingsPanel } from './GenerationSettings'
+import { ModelPresetsPanel } from './ModelPresets'
 import { OpenRouterRouting } from './OpenRouterRouting'
 
 const PROVIDERS: { id: ProviderId; name: string }[] = [
@@ -126,7 +126,7 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
 export function Settings(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
   const switchWorkspace = useWorkspace((s) => s.switchWorkspace)
-  const { settings, setProvider, load, loaded } = useSettings()
+  const { settings, load, loaded } = useSettings()
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {
@@ -167,29 +167,14 @@ export function Settings(): React.JSX.Element {
         </button>
       </div>
 
-      <div className="mb-6">
-        <div className="font-medium text-ink-900 mb-2">Active provider</div>
-        <select
-          value={settings.selectedProvider}
-          onChange={(e) => setProvider(workspace, e.target.value as ProviderId)}
-          className="st-select"
-        >
-          {PROVIDERS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <ModelPresetsPanel />
 
-      <div className="font-medium text-ink-900 mb-2">Providers</div>
+      <div className="font-medium text-ink-900 mb-2">Providers &amp; API keys</div>
       {PROVIDERS.map((p) => (
         <ProviderRow key={p.id} provider={p.id} name={p.name} workspace={workspace} />
       ))}
 
       <OpenRouterRouting />
-
-      <GenerationSettingsPanel />
     </div>
   )
 }

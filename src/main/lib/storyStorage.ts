@@ -56,6 +56,8 @@ export interface Chapter {
    *  "upcoming chapters" block for future chapters that aren't written yet. */
   outline: string
   content: string
+  /** Id of the model preset this chapter was last generated with (restored when reopened). */
+  model_preset_id: string | null
   created_at: string
   updated_at: string
 }
@@ -65,6 +67,7 @@ interface ChapterFrontmatter {
   number: number
   title: string
   outline?: string
+  model_preset_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -147,7 +150,12 @@ async function readChapter(
   const path = join(storyDir(workspace, slug), filename)
   try {
     const { fm, body } = parseFrontmatterDoc<ChapterFrontmatter>(await readFile(path, 'utf-8'))
-    return { ...fm, outline: typeof fm.outline === 'string' ? fm.outline : '', content: body }
+    return {
+      ...fm,
+      outline: typeof fm.outline === 'string' ? fm.outline : '',
+      model_preset_id: typeof fm.model_preset_id === 'string' ? fm.model_preset_id : null,
+      content: body
+    }
   } catch {
     return null
   }
@@ -159,6 +167,7 @@ async function writeChapter(workspace: string, slug: string, chapter: Chapter): 
     number: chapter.number,
     title: chapter.title,
     outline: chapter.outline,
+    model_preset_id: chapter.model_preset_id,
     created_at: chapter.created_at,
     updated_at: chapter.updated_at
   }
@@ -245,6 +254,7 @@ export async function createStory(
     title: 'Chapter 1',
     outline: '',
     content: '',
+    model_preset_id: null,
     created_at: now,
     updated_at: now
   }
@@ -304,6 +314,7 @@ export interface UpdateChapterInput {
   title?: string
   outline?: string
   content?: string
+  model_preset_id?: string | null
 }
 
 export async function updateChapter(
@@ -321,6 +332,8 @@ export async function updateChapter(
     title: patch.title !== undefined ? patch.title : chapter.title,
     outline: patch.outline !== undefined ? patch.outline : chapter.outline,
     content: patch.content !== undefined ? patch.content : chapter.content,
+    model_preset_id:
+      patch.model_preset_id !== undefined ? patch.model_preset_id : chapter.model_preset_id,
     updated_at: new Date().toISOString()
   }
   await writeChapter(workspace, story.meta.slug, updated)
@@ -362,6 +375,7 @@ export async function addChapter(
     title: title ?? `Chapter ${nextNumber}`,
     outline: '',
     content: '',
+    model_preset_id: null,
     created_at: now,
     updated_at: now
   }
