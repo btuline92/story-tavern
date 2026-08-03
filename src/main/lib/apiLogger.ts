@@ -17,6 +17,7 @@ export type ApiLogKind =
   | 'continue-stream'
   | 'plan-beats'
   | 'suggest-outlines'
+  | 'create-character'
   | 'image-tags'
   | 'image-generate'
 

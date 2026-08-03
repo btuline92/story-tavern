@@ -200,6 +200,16 @@ export interface StoryWithChapters {
   chapters: Chapter[]
 }
 
+export interface GeneratedCharacter {
+  name: string
+  description: string
+  personality: string
+  scenario: string
+  first_mes: string
+  tags: string[]
+  appearance_tags: string
+}
+
 export type ApiLogKind =
   | 'test'
   | 'list-models'
@@ -207,6 +217,7 @@ export type ApiLogKind =
   | 'continue-stream'
   | 'plan-beats'
   | 'suggest-outlines'
+  | 'create-character'
   | 'image-tags'
   | 'image-generate'
 

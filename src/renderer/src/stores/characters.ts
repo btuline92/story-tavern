@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Character, TavernV2Data } from '../types'
+import type { Character, GeneratedCharacter, TavernV2Data } from '../types'
 
 export interface CharacterUpdate {
   name?: string
@@ -14,6 +14,8 @@ interface CharactersState {
   load: (workspace: string) => Promise<void>
   importCard: (workspace: string) => Promise<void>
   createNew: (workspace: string) => Promise<Character>
+  /** Create a character from AI-generated fields and select it for review in the editor. */
+  createFromAI: (workspace: string, fields: GeneratedCharacter) => Promise<Character>
   update: (workspace: string, id: string, patch: CharacterUpdate) => Promise<Character>
   pickAvatar: (workspace: string, id: string) => Promise<Character | null>
   exportCard: (workspace: string, id: string, name: string) => Promise<string | null>
@@ -38,6 +40,32 @@ export const useCharacters = create<CharactersState>((set, get) => ({
   },
   createNew: async (workspace) => {
     const created = (await window.api.characters.create(workspace)) as Character
+    const list = (await window.api.characters.list(workspace)) as Character[]
+    set({ characters: list, selectedId: created.id })
+    return created
+  },
+  createFromAI: async (workspace, fields) => {
+    // Create + patch via the raw IPCs (not createNew/update, which would set selectedId early),
+    // then select once. CharacterDetail re-inits its draft only when the selected id changes, so
+    // this single transition to the fresh id makes the generated fields show in the editor.
+    const created = (await window.api.characters.create(
+      workspace,
+      fields.name || 'Untitled'
+    )) as Character
+    await window.api.characters.update(workspace, created.id, {
+      name: fields.name,
+      description: fields.description,
+      tavern_data: {
+        personality: fields.personality,
+        scenario: fields.scenario,
+        first_mes: fields.first_mes,
+        tags: fields.tags,
+        // extensions is merged only one level deep — send the whole story_tavern block.
+        extensions: {
+          story_tavern: { appearance_tags: fields.appearance_tags, negative_tags: '' }
+        }
+      }
+    })
     const list = (await window.api.characters.list(workspace)) as Character[]
     set({ characters: list, selectedId: created.id })
     return created

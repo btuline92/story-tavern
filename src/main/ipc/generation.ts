@@ -15,6 +15,130 @@ import type { ProviderId } from './providers'
 
 const activeStreams = new Map<string, AbortController>()
 
+// --- AI character creation ---
+
+export interface GeneratedCharacter {
+  name: string
+  description: string
+  personality: string
+  scenario: string
+  first_mes: string
+  tags: string[]
+  appearance_tags: string
+}
+
+/** Stage 1: freeform character "bible" — lets the model be creative without format pressure. */
+function buildBibleEntries(prompt: string): PromptEntry[] {
+  return [
+    {
+      role: 'system',
+      content:
+        'You are a character designer for interactive fiction. Given a short request, invent a vivid, ' +
+        'coherent character. Cover, in flowing prose: name; physical appearance; personality and ' +
+        'temperament; background/history; speaking style and mannerisms; and a default scenario the ' +
+        'character is in. Be specific and evocative. NSFW is allowed if the request implies it. ' +
+        'Write only the character concept — no preamble.'
+    },
+    { role: 'user', content: `Create a character based on this request:\n\n${prompt.trim()}` }
+  ]
+}
+
+const CHARACTER_SCHEMA_EXAMPLE = `{
+  "name": "Seraphine Vale",
+  "description": "A full character sheet: who they are, their history, role, and defining traits, in a few rich paragraphs.",
+  "personality": "A concise summary of temperament and behavior — e.g. guarded, dryly witty, fiercely loyal.",
+  "scenario": "The default situation the character is in when the story opens.",
+  "first_mes": "The character's opening message to {{user}}, in their own voice.",
+  "tags": ["elf", "ranger", "grumpy"],
+  "appearance_tags": "1girl, silver hair, long hair, green eyes, pointed ears, leather armor, cloak"
+}`
+
+/** Stage 2: structure the bible into the exact JSON shape we persist. */
+function buildStructureEntries(prompt: string, bible: string): PromptEntry[] {
+  return [
+    {
+      role: 'system',
+      content:
+        'Convert a character concept into a single JSON object with EXACTLY these keys: ' +
+        'name, description, personality, scenario, first_mes, tags, appearance_tags.\n\n' +
+        'Rules:\n' +
+        '- "description" is the main character sheet (a few paragraphs of prose).\n' +
+        '- "personality" and "scenario" are concise.\n' +
+        '- "first_mes" is the character\'s opening message; use the {{char}} and {{user}} macros where natural.\n' +
+        '- "tags" is a short array of lowercase strings (genre/trait tags).\n' +
+        '- "appearance_tags" is a comma-separated list of Danbooru/booru visual tags describing ONLY looks ' +
+        '(gender count, hair, eyes, body, notable features, clothing) — no personality, no sentences.\n' +
+        '- Respond with ONLY the JSON object. No markdown fences, no commentary.\n\n' +
+        'Shape (example values):\n' +
+        CHARACTER_SCHEMA_EXAMPLE
+    },
+    {
+      role: 'user',
+      content: `Original request: ${prompt.trim()}\n\nCharacter concept to structure:\n${bible.trim()}`
+    }
+  ]
+}
+
+/** Repair pass: hand malformed stage-2 output back for correction. */
+function buildRepairEntries(bad: string): PromptEntry[] {
+  return [
+    {
+      role: 'system',
+      content:
+        'The following was supposed to be a single JSON object with keys name, description, personality, ' +
+        'scenario, first_mes, tags (array of strings), appearance_tags (string), but it is not valid JSON. ' +
+        'Return ONLY the corrected, valid JSON object — same content, fixed syntax. No fences, no commentary.'
+    },
+    { role: 'user', content: bad }
+  ]
+}
+
+/** Extract a GeneratedCharacter from the model's JSON reply. Returns null if unusable. */
+function parseCharacterJson(text: string): GeneratedCharacter | null {
+  const t = (text ?? '').trim()
+  const start = t.indexOf('{')
+  const end = t.lastIndexOf('}')
+  if (start === -1 || end <= start) return null
+  let obj: unknown
+  try {
+    obj = JSON.parse(t.slice(start, end + 1))
+  } catch {
+    return null
+  }
+  if (!obj || typeof obj !== 'object') return null
+  const o = obj as Record<string, unknown>
+  const str = (v: unknown): string =>
+    typeof v === 'string'
+      ? v.trim()
+      : Array.isArray(v)
+        ? v
+            .map((x) => String(x).trim())
+            .filter(Boolean)
+            .join(', ')
+        : v == null
+          ? ''
+          : String(v)
+  const name = str(o.name)
+  if (!name) return null
+  const tags = Array.isArray(o.tags)
+    ? o.tags.map((x) => String(x).trim()).filter(Boolean)
+    : typeof o.tags === 'string'
+      ? o.tags
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : []
+  return {
+    name,
+    description: str(o.description),
+    personality: str(o.personality),
+    scenario: str(o.scenario),
+    first_mes: str(o.first_mes),
+    tags,
+    appearance_tags: str(o.appearance_tags)
+  }
+}
+
 /** Build the two-message prompt that asks the model to break a chapter outline into ordered beats. */
 function buildBeatPlanEntries(args: {
   story: StoryWithChapters
@@ -471,6 +595,84 @@ export function registerGenerationIpc(): void {
       const outlines = parseOutlines(metrics.fullText, beats + 4)
       if (outlines.length === 0) return { error: 'The model returned no usable outlines.' }
       return { outlines }
+    }
+  )
+
+  ipcMain.handle(
+    'generation:create-character',
+    async (
+      _event,
+      workspace: string,
+      prompt: string
+    ): Promise<{ character: GeneratedCharacter } | { error: string }> => {
+      const settings = await readWorkspaceSettings(workspace)
+      const provider: ProviderId = settings.selectedProvider
+      const model = settings.models[provider]
+      const apiKey = await getKey(provider)
+      if (!apiKey) return { error: `No API key saved for ${provider}` }
+      if (!prompt || !prompt.trim()) return { error: 'Describe the character you want to create.' }
+
+      // One non-streaming LLM call: collect the full text, log it, return text + error.
+      const runCall = async (
+        entries: PromptEntry[]
+      ): Promise<{ text: string; error: string | null }> => {
+        const ctrl = new AbortController()
+        let callError: string | null = null
+        const metrics = await streamContinue(
+          {
+            provider,
+            model,
+            apiKey,
+            generation: settings.generation,
+            entries,
+            openrouter: settings.openrouter
+          },
+          ctrl.signal,
+          {
+            onDelta: () => {},
+            onReasoning: () => {},
+            onDone: () => {},
+            onError: (e) => {
+              callError = e
+            }
+          }
+        )
+        await logApiCall(workspace, {
+          provider,
+          model,
+          kind: 'create-character',
+          url: metrics.url,
+          request_body: metrics.requestBody,
+          status: metrics.status,
+          response_body: JSON.stringify(
+            { text: metrics.fullText, reasoning: metrics.reasoningText },
+            null,
+            2
+          ),
+          error: metrics.error,
+          duration_ms: metrics.durationMs
+        })
+        return { text: metrics.fullText, error: callError ?? metrics.error }
+      }
+
+      // Stage 1: freeform character bible.
+      const bible = await runCall(buildBibleEntries(prompt))
+      if (bible.error) return { error: `Character generation failed: ${bible.error}` }
+
+      // Stage 2: structure it into JSON.
+      const structured = await runCall(buildStructureEntries(prompt, bible.text))
+      if (structured.error) return { error: `Character generation failed: ${structured.error}` }
+      let parsed = parseCharacterJson(structured.text)
+
+      // Repair retry: hand the malformed output back for correction.
+      if (!parsed) {
+        const repaired = await runCall(buildRepairEntries(structured.text))
+        if (!repaired.error) parsed = parseCharacterJson(repaired.text)
+      }
+      if (!parsed) {
+        return { error: 'The model did not return a usable character. Try again or rephrase.' }
+      }
+      return { character: parsed }
     }
   )
 

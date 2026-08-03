@@ -107,6 +107,16 @@ export interface ModelInfo {
   description?: string
 }
 
+export interface GeneratedCharacter {
+  name: string
+  description: string
+  personality: string
+  scenario: string
+  first_mes: string
+  tags: string[]
+  appearance_tags: string
+}
+
 export type BlockRole = 'system' | 'user' | 'assistant'
 export type MarkerType =
   | 'char_description'
@@ -181,6 +191,7 @@ export type ApiLogKind =
   | 'continue-stream'
   | 'plan-beats'
   | 'suggest-outlines'
+  | 'create-character'
   | 'image-tags'
   | 'image-generate'
 
@@ -379,6 +390,11 @@ const api = {
         guidance,
         beatCount
       ),
+    createCharacter: (
+      workspace: string,
+      prompt: string
+    ): Promise<{ character: GeneratedCharacter } | { error: string }> =>
+      ipcRenderer.invoke('generation:create-character', workspace, prompt),
     cancel: (streamId: string): Promise<boolean> =>
       ipcRenderer.invoke('generation:cancel', streamId),
     onDelta: (handler: (streamId: string, delta: string) => void): (() => void) =>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { useWorkspace } from '../stores/workspace'
 import type { Character } from '../types'
+import { CreateWithAiDialog } from './CreateWithAiDialog'
 
 function AvatarThumb({
   workspace,
@@ -40,6 +41,7 @@ function AvatarThumb({
 export function CharacterList(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
   const { characters, selectedId, load, importCard, createNew, select } = useCharacters()
+  const [aiOpen, setAiOpen] = useState(false)
 
   useEffect(() => {
     load(workspace)
@@ -54,6 +56,14 @@ export function CharacterList(): React.JSX.Element {
           className="flex-1 rounded-md bg-accent-500 px-3 py-2 text-white text-sm font-medium hover:bg-accent-600 transition"
         >
           New
+        </button>
+        <button
+          type="button"
+          onClick={() => setAiOpen(true)}
+          title="Create a character with AI"
+          className="flex-1 rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm font-medium text-ink-900 hover:bg-ink-100 transition"
+        >
+          ✨ AI
         </button>
         <button
           type="button"
@@ -87,6 +97,7 @@ export function CharacterList(): React.JSX.Element {
           </li>
         ))}
       </ul>
+      <CreateWithAiDialog open={aiOpen} onClose={() => setAiOpen(false)} />
     </div>
   )
 }

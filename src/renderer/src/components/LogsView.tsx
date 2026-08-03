@@ -184,6 +184,7 @@ export function LogsView(): React.JSX.Element {
           <option value="continue-stream">continue-stream</option>
           <option value="plan-beats">plan-beats</option>
           <option value="suggest-outlines">suggest-outlines</option>
+          <option value="create-character">create-character</option>
           <option value="image-tags">image-tags</option>
           <option value="image-generate">image-generate</option>
         </select>
