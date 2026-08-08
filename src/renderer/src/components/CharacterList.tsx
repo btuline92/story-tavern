@@ -2,41 +2,8 @@ import { useEffect, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { useWorkspace } from '../stores/workspace'
 import type { Character } from '../types'
+import { AvatarThumb } from './AvatarThumb'
 import { CreateWithAiDialog } from './CreateWithAiDialog'
-
-function AvatarThumb({
-  workspace,
-  avatar,
-  name
-}: {
-  workspace: string
-  avatar: string | null
-  name: string
-}): React.JSX.Element {
-  const [src, setSrc] = useState<string | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    if (avatar) {
-      window.api.characters
-        .readAvatar(workspace, avatar)
-        .then((dataUrl) => {
-          if (!cancelled) setSrc(dataUrl)
-        })
-        .catch(() => {})
-    }
-    return () => {
-      cancelled = true
-    }
-  }, [workspace, avatar])
-  if (src) {
-    return <img src={src} alt={name} className="h-12 w-12 rounded object-cover bg-ink-200" />
-  }
-  return (
-    <div className="h-12 w-12 rounded bg-ink-200 flex items-center justify-center text-ink-700 font-semibold">
-      {name.slice(0, 1).toUpperCase()}
-    </div>
-  )
-}
 
 export function CharacterList(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!

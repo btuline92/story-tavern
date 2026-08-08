@@ -112,6 +112,36 @@ export interface ImageGenResult {
   tags: string
 }
 
+export interface PhotographOpts {
+  mode: 'scene' | 'prompt'
+  characterIds: string[]
+  sceneText: string
+  directPrompt: string
+  systemPrompt: string
+  tagPromptName: string
+  prefixName: string
+}
+
+export interface PhotographResult {
+  dataUrl: string
+  positive: string
+  negative: string
+  tags: string
+}
+
+export interface GalleryImage {
+  file: string
+  prompt: string
+  createdAt: string
+}
+
+export interface StoryGalleryImage {
+  storySlug: string
+  storyTitle: string
+  relPath: string
+  prompt: string
+}
+
 export interface ModelInfo {
   id: string
   description?: string
@@ -445,11 +475,35 @@ const api = {
       passageText: string
     ): Promise<ImageGenResult | { error: string }> =>
       ipcRenderer.invoke('image:generate', genId, workspace, storyId, chapterNumber, passageText),
+    photograph: (
+      genId: string,
+      workspace: string,
+      opts: PhotographOpts
+    ): Promise<PhotographResult | { error: string }> =>
+      ipcRenderer.invoke('image:photograph', genId, workspace, opts),
     cancel: (genId: string): Promise<boolean> => ipcRenderer.invoke('image:cancel', genId),
     readFile: (workspace: string, storySlug: string, relPath: string): Promise<string | null> =>
       ipcRenderer.invoke('image:read-file', workspace, storySlug, relPath),
     onProgress: (handler: (genId: string, phase: ImagePhase) => void): (() => void) =>
       subscribe<[string, ImagePhase]>('image:progress', handler)
+  },
+  gallery: {
+    list: (
+      workspace: string,
+      characterId: string
+    ): Promise<{ dedicated: GalleryImage[]; stories: StoryGalleryImage[] }> =>
+      ipcRenderer.invoke('gallery:list', workspace, characterId),
+    read: (workspace: string, characterId: string, file: string): Promise<string | null> =>
+      ipcRenderer.invoke('gallery:read', workspace, characterId, file),
+    save: (
+      workspace: string,
+      characterId: string,
+      dataUrl: string,
+      prompt: string
+    ): Promise<GalleryImage | { error: string }> =>
+      ipcRenderer.invoke('gallery:save', workspace, characterId, dataUrl, prompt),
+    delete: (workspace: string, characterId: string, file: string): Promise<boolean> =>
+      ipcRenderer.invoke('gallery:delete', workspace, characterId, file)
   },
   debug: {
     // TEMPORARY: forward renderer focus diagnostics to the main-process terminal.

@@ -9,15 +9,28 @@ import { Settings } from './components/Settings'
 import { PresetsView } from './components/PresetsView'
 import { PluginsView } from './components/PluginsView'
 import { StoriesView } from './components/StoriesView'
+import { GalleryView } from './components/GalleryView'
+import { PhotographyView } from './components/PhotographyView'
 import { LogsView } from './components/LogsView'
 import { ImageSettingsPanel } from './components/ImageSettings'
 import { AppDialogs } from './components/AppDialogs'
 
-type View = 'stories' | 'characters' | 'presets' | 'plugins' | 'images' | 'logs' | 'settings'
+type View =
+  | 'stories'
+  | 'characters'
+  | 'gallery'
+  | 'photography'
+  | 'presets'
+  | 'plugins'
+  | 'images'
+  | 'logs'
+  | 'settings'
 
 const TABS: { id: View; label: string }[] = [
   { id: 'stories', label: 'Stories' },
   { id: 'characters', label: 'Characters' },
+  { id: 'gallery', label: 'Gallery' },
+  { id: 'photography', label: 'Photography' },
   { id: 'presets', label: 'Presets' },
   { id: 'plugins', label: 'Plugins' },
   { id: 'images', label: 'Images' },
@@ -151,6 +164,14 @@ function App(): React.JSX.Element {
       ) : view === 'stories' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">
           <StoriesView />
+        </main>
+      ) : view === 'gallery' ? (
+        <main className="row-start-2 col-span-2 overflow-hidden">
+          <GalleryView />
+        </main>
+      ) : view === 'photography' ? (
+        <main className="row-start-2 col-span-2 overflow-hidden">
+          <PhotographyView />
         </main>
       ) : view === 'images' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">

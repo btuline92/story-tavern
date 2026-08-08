@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { ulid } from 'ulid'
@@ -318,4 +318,8 @@ export async function deleteCharacter(workspace: string, id: string): Promise<vo
   if (target.avatar) {
     await unlink(join(charactersDir, target.avatar)).catch(() => {})
   }
+  // Remove the character's dedicated gallery (id-keyed, so unaffected by slug renames).
+  await rm(join(charactersDir, 'gallery', target.id), { recursive: true, force: true }).catch(
+    () => {}
+  )
 }

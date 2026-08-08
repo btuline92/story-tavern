@@ -182,6 +182,36 @@ export interface ImageGenResult {
   tags: string
 }
 
+export interface PhotographOpts {
+  mode: 'scene' | 'prompt'
+  characterIds: string[]
+  sceneText: string
+  directPrompt: string
+  systemPrompt: string
+  tagPromptName: string
+  prefixName: string
+}
+
+export interface PhotographResult {
+  dataUrl: string
+  positive: string
+  negative: string
+  tags: string
+}
+
+export interface GalleryImage {
+  file: string
+  prompt: string
+  createdAt: string
+}
+
+export interface StoryGalleryImage {
+  storySlug: string
+  storyTitle: string
+  relPath: string
+  prompt: string
+}
+
 export interface StoryMeta {
   id: string
   slug: string
