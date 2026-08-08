@@ -188,7 +188,7 @@ export interface PhotographOpts {
   sceneText: string
   directPrompt: string
   systemPrompt: string
-  tagPromptName: string
+  tagInstruction: string
   prefixName: string
 }
 

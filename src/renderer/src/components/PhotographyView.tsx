@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '../stores/settings'
 import { useCharacters } from '../stores/characters'
 import { useWorkspace } from '../stores/workspace'
+import { usePhotography } from '../stores/photography'
 import type { ImagePhase, PhotographResult } from '../types'
 import { CharacterPicker } from './CharacterPicker'
 import { Lightbox } from './Lightbox'
@@ -16,14 +17,25 @@ export function PhotographyView(): React.JSX.Element {
   const { characters, load } = useCharacters()
   const image = settings?.image ?? null
 
-  const [mode, setMode] = useState<'scene' | 'prompt'>('scene')
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [sceneText, setSceneText] = useState('')
-  const [directPrompt, setDirectPrompt] = useState('')
-  const [tagPromptName, setTagPromptName] = useState('')
-  const [prefixName, setPrefixName] = useState('')
-  // Ephemeral system-prompt scratchpad — null means "use the saved active one".
-  const [systemOverride, setSystemOverride] = useState<string | null>(null)
+  // Form state lives in a store so edits survive navigating to another tab and back.
+  const {
+    mode,
+    selectedIds,
+    sceneText,
+    directPrompt,
+    prefixName,
+    tagPromptName,
+    tagInstructionOverride,
+    systemOverride,
+    setMode,
+    setSelectedIds,
+    setSceneText,
+    setDirectPrompt,
+    setPrefixName,
+    setTagPromptName,
+    setTagInstructionOverride,
+    setSystemOverride
+  } = usePhotography()
 
   const [loading, setLoading] = useState(false)
   const [phase, setPhase] = useState<ImagePhase | null>(null)
@@ -46,13 +58,21 @@ export function PhotographyView(): React.JSX.Element {
     return <div className="p-8 text-sm text-ink-700">Loading settings…</div>
   }
 
+  const activeTag =
+    image.tagPrompts.find((p) => p.name === (tagPromptName || image.activeTagPrompt)) ??
+    image.tagPrompts[0]
+  const savedTagText = activeTag?.text ?? ''
+  const tagInstructionValue = tagInstructionOverride ?? savedTagText
+
   const activeSystem =
     image.systemPrompts.find((p) => p.name === image.activeSystemPrompt) ?? image.systemPrompts[0]
   const savedSystemText = activeSystem?.text ?? ''
   const systemPromptValue = systemOverride ?? savedSystemText
 
   const toggleChar = (id: string): void =>
-    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
+    setSelectedIds(
+      selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]
+    )
 
   const canGenerate =
     image.enabled &&
@@ -77,7 +97,7 @@ export function PhotographyView(): React.JSX.Element {
         sceneText,
         directPrompt,
         systemPrompt: systemPromptValue,
-        tagPromptName: tagPromptName || image.activeTagPrompt,
+        tagInstruction: tagInstructionValue,
         prefixName: prefixName || image.activePromptPrefix
       })
       if ('error' in res) {
@@ -206,13 +226,26 @@ export function PhotographyView(): React.JSX.Element {
                   className="st-input mb-4 w-full resize-y"
                 />
 
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-700">
-                  Scene instruction
-                </label>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-ink-700">
+                    Scene instruction (scratchpad)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setTagInstructionOverride(null)}
+                    disabled={tagInstructionOverride === null}
+                    className="st-btn st-btn-sm st-btn-default"
+                  >
+                    Reset to saved
+                  </button>
+                </div>
                 <select
                   value={tagPromptName || image.activeTagPrompt}
-                  onChange={(e) => setTagPromptName(e.target.value)}
-                  className="st-select mb-4 w-full"
+                  onChange={(e) => {
+                    setTagPromptName(e.target.value)
+                    setTagInstructionOverride(null)
+                  }}
+                  className="st-select mb-2 w-full"
                 >
                   {image.tagPrompts.map((p, i) => (
                     <option key={i} value={p.name}>
@@ -220,6 +253,12 @@ export function PhotographyView(): React.JSX.Element {
                     </option>
                   ))}
                 </select>
+                <textarea
+                  value={tagInstructionValue}
+                  onChange={(e) => setTagInstructionOverride(e.target.value)}
+                  rows={4}
+                  className="st-input mb-4 w-full resize-y font-mono text-xs"
+                />
 
                 <div className="mb-1 flex items-center justify-between">
                   <label className="text-xs font-semibold uppercase tracking-wide text-ink-700">
@@ -241,8 +280,9 @@ export function PhotographyView(): React.JSX.Element {
                   className="st-input mb-1 w-full resize-y font-mono text-xs"
                 />
                 <div className="mb-4 text-[11px] text-ink-700">
-                  Edits here are temporary — they only affect generations on this screen. To keep a
-                  good prompt, copy it into a saved system prompt in Settings → Images.
+                  Edits to the scene instruction and system prompt are temporary — they only affect
+                  generations on this screen. To keep a good one, copy it into a saved prompt in
+                  Settings → Images.
                 </div>
               </>
             ) : (

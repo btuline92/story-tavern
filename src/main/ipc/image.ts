@@ -40,8 +40,8 @@ export interface PhotographOpts {
   directPrompt: string
   /** Ephemeral tagging system prompt (scene mode) — never persisted. */
   systemPrompt: string
-  /** Name of the tag prompt (scene instruction) to use; falls back to the active one. */
-  tagPromptName: string
+  /** Ephemeral scene instruction (the tag prompt text, possibly edited) — never persisted. */
+  tagInstruction: string
   /** Name of the prompt-prefix pair to use; falls back to the active one. */
   prefixName: string
 }
@@ -314,10 +314,6 @@ export function registerImageIpc(): void {
           if (!apiKey)
             return { error: `No API key saved for ${provider} (needed for image tagging).` }
 
-          const tagPrompt =
-            image.tagPrompts.find((p) => p.name === opts.tagPromptName) ??
-            image.tagPrompts.find((p) => p.name === image.activeTagPrompt) ??
-            image.tagPrompts[0]
           const charNames =
             characters
               .map((c) => c.name)
@@ -325,7 +321,9 @@ export function registerImageIpc(): void {
               .join(' and ') || 'the character'
           const interp = (s: string): string =>
             s.replace(/\{\{char\}\}/g, charNames).replace(/\{\{user\}\}/g, 'the protagonist')
-          const tagInstruction = interp(tagPrompt?.text ?? '')
+          // Photography supplies the scene instruction as full text (a scratchpad based on a saved
+          // tag prompt) — so the user can test instruction changes without persisting them.
+          const tagInstruction = interp(opts.tagInstruction ?? '')
           // Photography supplies its OWN ephemeral system prompt (a scratchpad) — NOT the saved
           // active one — so the user can test system-prompt changes without persisting them.
           const systemPrompt = interp(opts.systemPrompt ?? '')
