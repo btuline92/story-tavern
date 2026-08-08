@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { getKey } from '../lib/safeStore'
 import { logApiCall } from '../lib/apiLogger'
 
-export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek'
+export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek' | 'nanogpt'
 
 export interface TestConnectionResult {
   ok: boolean
@@ -18,7 +18,8 @@ const DEFAULT_MODELS: Record<ProviderId, string> = {
   anthropic: 'claude-haiku-4-5-20251001',
   openai: 'gpt-4o-mini',
   openrouter: 'openrouter/auto',
-  deepseek: 'deepseek-chat'
+  deepseek: 'deepseek-chat',
+  nanogpt: 'gpt-4o-mini'
 }
 
 const ANTHROPIC_FALLBACK_MODELS: ModelInfo[] = [
@@ -225,6 +226,9 @@ async function listModels(
     case 'deepseek':
       if (!key) throw new Error('DeepSeek requires an API key to list models')
       return listOpenAIStyleModels(workspace, 'deepseek', 'https://api.deepseek.com/v1/models', key)
+    case 'nanogpt':
+      if (!key) throw new Error('NanoGPT requires an API key to list models')
+      return listOpenAIStyleModels(workspace, 'nanogpt', 'https://nano-gpt.com/api/v1/models', key)
     default:
       throw new Error(`Unknown provider: ${String(provider)}`)
   }
@@ -276,6 +280,14 @@ export function registerProvidersIpc(): void {
             ws,
             'deepseek',
             'https://api.deepseek.com/v1/chat/completions',
+            key,
+            m
+          )
+        case 'nanogpt':
+          return testOpenAICompat(
+            ws,
+            'nanogpt',
+            'https://nano-gpt.com/api/v1/chat/completions',
             key,
             m
           )

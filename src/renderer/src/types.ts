@@ -27,7 +27,7 @@ export interface Character {
   description: string
 }
 
-export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek'
+export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek' | 'nanogpt'
 export type ReasoningLevel = 'off' | 'low' | 'medium' | 'high'
 
 export interface ModelInfo {

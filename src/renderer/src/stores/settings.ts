@@ -33,7 +33,8 @@ const EMPTY_HAS_KEY: Record<ProviderId, boolean> = {
   anthropic: false,
   openai: false,
   openrouter: false,
-  deepseek: false
+  deepseek: false,
+  nanogpt: false
 }
 
 async function persist(

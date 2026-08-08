@@ -138,7 +138,10 @@ function anthropicRequest(req: StreamRequest): { url: string; init: RequestInit;
 function openAICompatRequest(
   url: string,
   req: StreamRequest,
-  options: { provider: 'openai' | 'openrouter' | 'deepseek'; extraHeaders?: Record<string, string> }
+  options: {
+    provider: 'openai' | 'openrouter' | 'deepseek' | 'nanogpt'
+    extraHeaders?: Record<string, string>
+  }
 ): { url: string; init: RequestInit; body: string } {
   // OpenRouter commonly routes to Claude on Vertex, which rejects inline system messages that
   // follow an assistant/system turn — hoist all system content into one leading system message.
@@ -346,6 +349,12 @@ export async function streamContinue(
     case 'deepseek':
       prepared = openAICompatRequest('https://api.deepseek.com/v1/chat/completions', req, {
         provider: 'deepseek'
+      })
+      consume = consumeOpenAIStream
+      break
+    case 'nanogpt':
+      prepared = openAICompatRequest('https://nano-gpt.com/api/v1/chat/completions', req, {
+        provider: 'nanogpt'
       })
       consume = consumeOpenAIStream
       break

@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron'
 import { deleteKey, getKey, setKey } from '../lib/safeStore'
 
-export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek'
+export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek' | 'nanogpt'
 
-const ALL_PROVIDERS: ProviderId[] = ['anthropic', 'openai', 'openrouter', 'deepseek']
+const ALL_PROVIDERS: ProviderId[] = ['anthropic', 'openai', 'openrouter', 'deepseek', 'nanogpt']
 
 export function registerKeysIpc(): void {
   ipcMain.handle('keys:get', async (_e, provider: ProviderId) => {
@@ -22,7 +22,8 @@ export function registerKeysIpc(): void {
       anthropic: false,
       openai: false,
       openrouter: false,
-      deepseek: false
+      deepseek: false,
+      nanogpt: false
     }
     await Promise.all(
       ALL_PROVIDERS.map(async (p) => {

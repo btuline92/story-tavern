@@ -11,5 +11,6 @@ export const providers: Record<ProviderId, LLMProvider> = {
   anthropic: factory('anthropic', 'Anthropic'),
   openai: factory('openai', 'OpenAI'),
   openrouter: factory('openrouter', 'OpenRouter'),
-  deepseek: factory('deepseek', 'DeepSeek')
+  deepseek: factory('deepseek', 'DeepSeek'),
+  nanogpt: factory('nanogpt', 'NanoGPT')
 }

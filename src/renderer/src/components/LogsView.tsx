@@ -170,6 +170,7 @@ export function LogsView(): React.JSX.Element {
           <option value="openai">openai</option>
           <option value="openrouter">openrouter</option>
           <option value="deepseek">deepseek</option>
+          <option value="nanogpt">nanogpt</option>
           <option value="comfyui">comfyui</option>
         </select>
         <select
