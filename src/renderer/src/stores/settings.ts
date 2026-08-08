@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import type { ImageSettings, OpenRouterSettings, ProviderId, WorkspaceSettings } from '../types'
+import type {
+  ImageSettings,
+  ModelPreset,
+  OpenRouterSettings,
+  ProviderId,
+  WorkspaceSettings
+} from '../types'
 
 interface SettingsState {
   settings: WorkspaceSettings | null
@@ -14,6 +20,11 @@ interface SettingsState {
   setOpenRouter: (workspace: string, patch: Partial<OpenRouterSettings>) => Promise<void>
   /** Set the model preset used for generation (used by the story-editor switcher). */
   setActiveModelPreset: (workspace: string, id: string) => Promise<void>
+  /** Patch the active model preset in place (used by the story-editor model picker). */
+  patchActiveModelPreset: (
+    workspace: string,
+    patch: Partial<Pick<ModelPreset, 'provider' | 'model'>>
+  ) => Promise<void>
   saveKey: (provider: ProviderId, key: string) => Promise<void>
   deleteKey: (provider: ProviderId) => Promise<void>
 }
@@ -86,6 +97,16 @@ export const useSettings = create<SettingsState>((set, get) => ({
     if (!current || current.activeModelPresetId === id) return
     if (!current.modelPresets.some((p) => p.id === id)) return
     await persist(workspace, set, { ...current, activeModelPresetId: id })
+  },
+  patchActiveModelPreset: async (workspace, patch) => {
+    const current = get().settings
+    if (!current) return
+    const activeId = current.activeModelPresetId ?? current.modelPresets[0]?.id
+    if (!activeId) return
+    const modelPresets = current.modelPresets.map((p) =>
+      p.id === activeId ? { ...p, ...patch } : p
+    )
+    await persist(workspace, set, { ...current, modelPresets })
   },
   saveKey: async (provider, key) => {
     await window.api.keys.set(provider, key)

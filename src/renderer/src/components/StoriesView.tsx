@@ -8,6 +8,7 @@ import { NewStoryDialog } from './NewStoryDialog'
 import { StoryDetailsPanel } from './StoryDetailsPanel'
 import { ChapterDocument } from './ChapterDocument'
 import { OutlineSuggestDialog } from './OutlineSuggestDialog'
+import { ModelSelect } from './ModelSelect'
 
 const IMAGE_MARKER_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g
 
@@ -92,8 +93,11 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   const imageEnabled = useSettings((s) => s.settings?.image.enabled ?? false)
   const settings = useSettings((s) => s.settings)
   const setActiveModelPreset = useSettings((s) => s.setActiveModelPreset)
+  const patchActiveModelPreset = useSettings((s) => s.patchActiveModelPreset)
+  const hasKey = useSettings((s) => s.hasKey)
   const modelPresets = settings?.modelPresets ?? []
   const activeModelPresetId = settings?.activeModelPresetId ?? null
+  const activePreset = modelPresets.find((p) => p.id === activeModelPresetId) ?? modelPresets[0]
   const [titleDraft, setTitleDraft] = useState('')
   const [outlineDraft, setOutlineDraft] = useState('')
   const [contentDraft, setContentDraft] = useState('')
@@ -186,15 +190,6 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     }
   }, [streamBuffer, generating])
 
-  // When switching chapters, restore the model preset this chapter was last generated with.
-  useEffect(() => {
-    const id = chapter?.model_preset_id
-    if (id && id !== activeModelPresetId && modelPresets.some((p) => p.id === id)) {
-      void setActiveModelPreset(workspace, id)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chapter?.id])
-
   if (!active) {
     return (
       <div className="flex h-full items-center justify-center text-ink-700">
@@ -219,7 +214,6 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
 
   const onSwitchModel = async (id: string): Promise<void> => {
     await setActiveModelPreset(workspace, id)
-    if (chapter) await updateChapter(workspace, chapter.number, { model_preset_id: id })
   }
 
   const busy = generating || imageGenerating || magicActive
@@ -379,24 +373,9 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             placeholder="Chapter title"
             className="flex-1 rounded-md border border-transparent px-2 py-1 text-lg font-semibold focus:outline-none focus:border-ink-200 focus:ring-2 focus:ring-accent-500 disabled:bg-ink-50"
           />
-          <div className="text-xs text-ink-700 whitespace-nowrap">
+          <div className="text-xs text-ink-700 whitespace-nowrap shrink-0">
             {wordCount(contentDraft)} words {saving ? '• saving…' : dirty ? '• unsaved' : '• saved'}
           </div>
-          {modelPresets.length > 0 && (
-            <select
-              value={activeModelPresetId ?? ''}
-              onChange={(e) => onSwitchModel(e.target.value)}
-              disabled={busy}
-              title="Model preset used for generation"
-              className="max-w-[12rem] rounded-md border border-ink-200 bg-surface px-2 py-1.5 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:opacity-60"
-            >
-              {modelPresets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name || '(unnamed)'}
-                </option>
-              ))}
-            </select>
-          )}
           <button
             type="button"
             onClick={onCopyText}
@@ -423,6 +402,37 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
           >
             {detailsOpen ? 'Details ▶' : '◀ Details'}
           </button>
+        </div>
+
+        <div className="flex items-center gap-2 border-b border-ink-200 bg-ink-50 px-6 py-2">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-ink-700">
+            Model
+          </span>
+          {modelPresets.length > 0 && (
+            <select
+              value={activeModelPresetId ?? ''}
+              onChange={(e) => onSwitchModel(e.target.value)}
+              disabled={busy}
+              title="Model preset used for generation"
+              className="max-w-[12rem] shrink-0 rounded-md border border-ink-200 bg-surface px-2 py-1.5 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:opacity-60"
+            >
+              {modelPresets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name || '(unnamed)'}
+                </option>
+              ))}
+            </select>
+          )}
+          {activePreset && (
+            <div className="w-72 max-w-full" title="Model for the active preset">
+              <ModelSelect
+                provider={activePreset.provider}
+                value={activePreset.model}
+                hasKey={hasKey[activePreset.provider]}
+                onChange={(model) => patchActiveModelPreset(workspace, { model })}
+              />
+            </div>
+          )}
         </div>
 
         {!noChapters && (
