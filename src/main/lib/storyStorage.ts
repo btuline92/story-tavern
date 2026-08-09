@@ -11,6 +11,8 @@ export interface StoryMeta {
   /** Short, human-facing blurb shown in the story list. Distinct from `premise` (which is fed to
    *  the LLM at generation time). Seeded from the premise on create; edited independently after. */
   description: string
+  /** Free-form story tags (separate from character tags). Used for the story-list search/filter. */
+  tags: string[]
   character_ids: string[]
   preset_id: string | null
   plugin_ids: string[]
@@ -42,6 +44,9 @@ function withDefaults(
     slug: meta.slug,
     title: meta.title,
     description: typeof meta.description === 'string' ? meta.description : '',
+    tags: Array.isArray(meta.tags)
+      ? meta.tags.filter((t): t is string => typeof t === 'string')
+      : [],
     character_ids: Array.isArray(meta.character_ids)
       ? meta.character_ids
       : meta.character_id
@@ -316,6 +321,7 @@ export async function createStory(
 export interface StoryMetaUpdate {
   title?: string
   description?: string
+  tags?: string[]
   characterIds?: string[]
   presetId?: string | null
   pluginIds?: string[]
@@ -347,6 +353,7 @@ export async function updateStoryMeta(
     slug: nextSlug,
     title: nextTitle,
     description: patch.description !== undefined ? patch.description : current.description,
+    tags: patch.tags !== undefined ? patch.tags : current.tags,
     character_ids: patch.characterIds !== undefined ? patch.characterIds : current.character_ids,
     preset_id: patch.presetId !== undefined ? patch.presetId : current.preset_id,
     plugin_ids: patch.pluginIds !== undefined ? patch.pluginIds : current.plugin_ids,

@@ -85,6 +85,7 @@ interface StoriesState {
     patch: {
       title?: string
       description?: string
+      tags?: string[]
       characterIds?: string[]
       presetId?: string | null
       pluginIds?: string[]

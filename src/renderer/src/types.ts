@@ -228,6 +228,7 @@ export interface StoryMeta {
   slug: string
   title: string
   description: string
+  tags: string[]
   character_ids: string[]
   preset_id: string | null
   plugin_ids: string[]

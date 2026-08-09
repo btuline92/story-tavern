@@ -4,10 +4,12 @@ import { usePresets } from '../stores/presets'
 import { usePlugins } from '../stores/plugins'
 import { useStories } from '../stores/stories'
 import { CharacterPicker } from './CharacterPicker'
+import { TagsEditor } from './TagsEditor'
 
 interface DraftMeta {
   title: string
   description: string
+  tags: string[]
   characterIds: string[]
   presetId: string | null
   pluginIds: string[]
@@ -76,6 +78,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
       setDraft({
         title: active.meta.title,
         description: active.meta.description,
+        tags: active.meta.tags ?? [],
         characterIds: active.meta.character_ids,
         presetId: active.meta.preset_id,
         pluginIds: active.meta.plugin_ids,
@@ -89,6 +92,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     !!draft &&
     (draft.title !== active.meta.title ||
       draft.description !== active.meta.description ||
+      JSON.stringify(draft.tags) !== JSON.stringify(active.meta.tags) ||
       JSON.stringify(draft.characterIds) !== JSON.stringify(active.meta.character_ids) ||
       draft.presetId !== active.meta.preset_id ||
       JSON.stringify(draft.pluginIds) !== JSON.stringify(active.meta.plugin_ids) ||
@@ -105,6 +109,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
           await updateMeta(workspace, active.meta.id, {
             title: draft.title,
             description: draft.description,
+            tags: draft.tags,
             characterIds: draft.characterIds,
             presetId: draft.presetId,
             pluginIds: draft.pluginIds,
@@ -123,6 +128,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     dirty,
     draft?.title,
     draft?.description,
+    draft?.tags,
     draft?.characterIds,
     draft?.presetId,
     draft?.pluginIds,
@@ -178,6 +184,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
               className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 resize-y"
             />
           </div>
+          <TagsEditor value={draft.tags} onChange={(v) => setField('tags', v)} />
           <div>
             <Label>Characters</Label>
             <CharacterPicker

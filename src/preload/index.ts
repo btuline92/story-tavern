@@ -212,6 +212,7 @@ export interface StoryMeta {
   slug: string
   title: string
   description: string
+  tags: string[]
   character_ids: string[]
   preset_id: string | null
   plugin_ids: string[]
@@ -382,6 +383,7 @@ const api = {
       patch: {
         title?: string
         description?: string
+        tags?: string[]
         characterIds?: string[]
         presetId?: string | null
         pluginIds?: string[]

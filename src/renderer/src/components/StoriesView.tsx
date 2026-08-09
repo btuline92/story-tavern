@@ -4,6 +4,7 @@ import { useStories } from '../stores/stories'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
 import { askConfirm, showAlert } from '../stores/dialog'
+import { EMPTY_STORY_FILTER, filterStories, isStoryFilterActive } from '../lib/storyFilter'
 import { NewStoryDialog } from './NewStoryDialog'
 import { StoryDetailsPanel } from './StoryDetailsPanel'
 import { ChapterDocument } from './ChapterDocument'
@@ -732,6 +733,8 @@ export function StoriesView(): React.JSX.Element {
   const [dialogOpen, setDialogOpen] = useState(false)
   // Filter the story list to stories whose cast includes this character id ('' = all).
   const [castFilter, setCastFilter] = useState('')
+  // Name/tag search + selected tag chips.
+  const [filter, setFilter] = useState(EMPTY_STORY_FILTER)
   const [page, setPage] = useState(1)
 
   useEffect(() => {
@@ -739,14 +742,32 @@ export function StoriesView(): React.JSX.Element {
     loadChars(workspace)
   }, [workspace])
 
-  const shownStories = useMemo(
-    () => (castFilter ? stories.filter((s) => s.character_ids.includes(castFilter)) : stories),
-    [stories, castFilter]
-  )
-  const PAGE_SIZE = 20
+  const shownStories = useMemo(() => {
+    const byCast = castFilter
+      ? stories.filter((s) => s.character_ids.includes(castFilter))
+      : stories
+    return filterStories(byCast, filter)
+  }, [stories, castFilter, filter])
+  const filtersActive = isStoryFilterActive(filter) || castFilter !== ''
+  const clearFilters = (): void => {
+    setFilter(EMPTY_STORY_FILTER)
+    setCastFilter('')
+    setPage(1)
+  }
+  const PAGE_SIZE = 12
   const totalPages = Math.max(1, Math.ceil(shownStories.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pageItems = shownStories.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  // Jump-to-page: clamp a typed page number, else reset the input to the current page.
+  const commitPageInput = (el: HTMLInputElement): void => {
+    const n = Math.round(Number(el.value))
+    if (Number.isFinite(n) && n >= 1 && n <= totalPages) {
+      setPage(n)
+      el.value = String(n)
+    } else {
+      el.value = String(safePage)
+    }
+  }
 
   if (active) {
     return (
@@ -826,43 +847,66 @@ export function StoriesView(): React.JSX.Element {
     <>
       <div className="h-full overflow-y-auto p-8">
         <div className="mx-auto max-w-4xl">
-          <div className="flex items-center justify-between mb-6 gap-3">
+          <div className="flex items-center justify-between mb-4 gap-3">
             <h2 className="text-2xl font-semibold text-ink-900">Stories</h2>
-            <div className="flex items-center gap-2">
-              {characters.length > 0 && (
-                <select
-                  value={castFilter}
+            <button
+              type="button"
+              onClick={() => setDialogOpen(true)}
+              className="rounded-md bg-accent-500 px-4 py-2 text-sm text-white font-medium hover:bg-accent-600"
+            >
+              New story…
+            </button>
+          </div>
+          {stories.length > 0 && (
+            <div className="mb-4 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={filter.search}
                   onChange={(e) => {
-                    setCastFilter(e.target.value)
+                    setFilter((f) => ({ ...f, search: e.target.value }))
                     setPage(1)
                   }}
-                  title="Filter stories by a character in the cast"
-                  className="rounded-md border border-ink-200 bg-surface px-2 py-2 text-sm"
-                >
-                  <option value="">All characters</option>
-                  {characters.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="button"
-                onClick={() => setDialogOpen(true)}
-                className="rounded-md bg-accent-500 px-4 py-2 text-sm text-white font-medium hover:bg-accent-600"
-              >
-                New story…
-              </button>
+                  placeholder="Search stories by name or tag…"
+                  className="flex-1 rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                />
+                {characters.length > 0 && (
+                  <select
+                    value={castFilter}
+                    onChange={(e) => {
+                      setCastFilter(e.target.value)
+                      setPage(1)
+                    }}
+                    title="Filter stories by a character in the cast"
+                    className="rounded-md border border-ink-200 bg-surface px-2 py-2 text-sm"
+                  >
+                    <option value="">All characters</option>
+                    {characters.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {filtersActive && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="rounded-md border border-ink-200 bg-surface px-2 py-2 text-sm text-ink-700 hover:bg-ink-100"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
           {stories.length === 0 ? (
             <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-ink-700">
               No stories yet. Click <span className="font-medium">New story…</span> to begin.
             </div>
           ) : shownStories.length === 0 ? (
             <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-ink-700">
-              No stories include the selected character.
+              No stories match the current filters.
             </div>
           ) : (
             <>
@@ -888,6 +932,18 @@ export function StoriesView(): React.JSX.Element {
                           {chapters} {chapters === 1 ? 'chapter' : 'chapters'} · Updated{' '}
                           {new Date(s.updated_at).toLocaleDateString()}
                         </div>
+                        {s.tags?.length ? (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {s.tags.map((t) => (
+                              <span
+                                key={t}
+                                className="rounded-full bg-ink-100 px-1.5 py-0.5 text-[10px] text-ink-700"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </button>
                       <button
                         type="button"
@@ -919,8 +975,22 @@ export function StoriesView(): React.JSX.Element {
                   >
                     ‹ Prev
                   </button>
-                  <span className="text-ink-700">
-                    Page {safePage} of {totalPages}
+                  <span className="text-ink-700 whitespace-nowrap">
+                    Page{' '}
+                    <input
+                      key={safePage}
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      defaultValue={safePage}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitPageInput(e.currentTarget)
+                      }}
+                      onBlur={(e) => commitPageInput(e.currentTarget)}
+                      aria-label="Jump to page"
+                      className="mx-1 w-12 rounded-md border border-ink-200 bg-surface px-1.5 py-1 text-center text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    />{' '}
+                    of {totalPages}
                   </span>
                   <button
                     type="button"

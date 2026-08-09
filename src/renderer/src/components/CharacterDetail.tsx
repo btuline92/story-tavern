@@ -3,6 +3,7 @@ import { useCharacters } from '../stores/characters'
 import { useWorkspace } from '../stores/workspace'
 import { askConfirm } from '../stores/dialog'
 import type { Character } from '../types'
+import { TagsEditor } from './TagsEditor'
 
 interface DraftFields {
   name: string
@@ -114,70 +115,6 @@ function TextArea({
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm whitespace-pre-wrap focus:outline-none focus:ring-2 focus:ring-accent-500 resize-y"
       />
-    </div>
-  )
-}
-
-function TagsEditor({
-  value,
-  onChange
-}: {
-  value: string[]
-  onChange: (v: string[]) => void
-}): React.JSX.Element {
-  const [input, setInput] = useState('')
-
-  const add = (raw: string): void => {
-    const parts = raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0)
-    if (parts.length === 0) return
-    const next = [...value]
-    for (const p of parts) if (!next.includes(p)) next.push(p)
-    onChange(next)
-    setInput('')
-  }
-
-  return (
-    <div className="mb-4">
-      <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
-        Tags
-      </label>
-      <div className="rounded-md border border-ink-200 bg-surface p-2 flex flex-wrap gap-1.5">
-        {value.map((tag) => (
-          <span
-            key={tag}
-            className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2.5 py-0.5 text-xs text-ink-700"
-          >
-            {tag}
-            <button
-              type="button"
-              onClick={() => onChange(value.filter((t) => t !== tag))}
-              className="text-ink-700 hover:text-ink-900"
-              aria-label={`Remove tag ${tag}`}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ',') {
-              e.preventDefault()
-              add(input)
-            } else if (e.key === 'Backspace' && !input && value.length > 0) {
-              onChange(value.slice(0, -1))
-            }
-          }}
-          onBlur={() => input.trim() && add(input)}
-          placeholder={value.length === 0 ? 'Add tags (comma or Enter to commit)' : ''}
-          className="flex-1 min-w-[10rem] text-sm focus:outline-none bg-transparent"
-        />
-      </div>
     </div>
   )
 }
