@@ -8,6 +8,9 @@ export interface StoryMeta {
   id: string
   slug: string
   title: string
+  /** Short, human-facing blurb shown in the story list. Distinct from `premise` (which is fed to
+   *  the LLM at generation time). Seeded from the premise on create; edited independently after. */
+  description: string
   character_ids: string[]
   preset_id: string | null
   plugin_ids: string[]
@@ -15,6 +18,8 @@ export interface StoryMeta {
   created_at: string
   updated_at: string
   notes: string
+  /** Number of chapters — computed at list time (listStoriesWithCounts), NOT persisted to disk. */
+  chapterCount?: number
 }
 
 function withDefaults(
@@ -31,6 +36,7 @@ function withDefaults(
     id: meta.id,
     slug: meta.slug,
     title: meta.title,
+    description: typeof meta.description === 'string' ? meta.description : '',
     character_ids: Array.isArray(meta.character_ids)
       ? meta.character_ids
       : meta.character_id
@@ -207,6 +213,26 @@ export async function listChapters(workspace: string, slug: string): Promise<Cha
   return chapters
 }
 
+/** Count a story's chapter files without parsing them (cheaper than listChapters). */
+export async function countChapters(workspace: string, slug: string): Promise<number> {
+  const dir = storyDir(workspace, slug)
+  if (!existsSync(dir)) return 0
+  const entries = await readdir(dir, { withFileTypes: true })
+  return entries.filter((e) => e.isFile() && /^chapter-\d+\.md$/.test(e.name)).length
+}
+
+/** listStories + a computed `chapterCount` per story. Used only for the story-list UI — the count is
+ *  NOT persisted, so plain listStories (used by writes) stays free of it. */
+export async function listStoriesWithCounts(workspace: string): Promise<StoryMeta[]> {
+  const stories = await listStories(workspace)
+  return Promise.all(
+    stories.map(async (meta) => ({
+      ...meta,
+      chapterCount: await countChapters(workspace, meta.slug)
+    }))
+  )
+}
+
 export interface StoryWithChapters {
   meta: StoryMeta
   chapters: Chapter[]
@@ -239,6 +265,8 @@ export async function createStory(
     id: ulid(),
     slug,
     title: input.title.trim() || 'Untitled story',
+    // Seed the display blurb from the premise; the author can refine it independently later.
+    description: input.premise ?? '',
     character_ids: input.characterIds,
     preset_id: input.presetId,
     plugin_ids: input.pluginIds ?? [],
@@ -264,6 +292,7 @@ export async function createStory(
 
 export interface StoryMetaUpdate {
   title?: string
+  description?: string
   characterIds?: string[]
   presetId?: string | null
   pluginIds?: string[]
@@ -292,6 +321,7 @@ export async function updateStoryMeta(
     ...current,
     slug: nextSlug,
     title: nextTitle,
+    description: patch.description !== undefined ? patch.description : current.description,
     character_ids: patch.characterIds !== undefined ? patch.characterIds : current.character_ids,
     preset_id: patch.presetId !== undefined ? patch.presetId : current.preset_id,
     plugin_ids: patch.pluginIds !== undefined ? patch.pluginIds : current.plugin_ids,

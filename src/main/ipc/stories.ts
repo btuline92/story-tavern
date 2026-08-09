@@ -6,7 +6,7 @@ import {
   CreateStoryInput,
   deleteChapter,
   deleteStory,
-  listStories,
+  listStoriesWithCounts,
   loadStory,
   StoryMetaUpdate,
   updateChapter,
@@ -15,7 +15,7 @@ import {
 } from '../lib/storyStorage'
 
 export function registerStoriesIpc(): void {
-  ipcMain.handle('stories:list', (_e, workspace: string) => listStories(workspace))
+  ipcMain.handle('stories:list', (_e, workspace: string) => listStoriesWithCounts(workspace))
   ipcMain.handle('stories:load', (_e, workspace: string, id: string) => loadStory(workspace, id))
   ipcMain.handle('stories:create', (_e, workspace: string, input: CreateStoryInput) =>
     createStory(workspace, input)

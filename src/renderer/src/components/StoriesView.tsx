@@ -692,6 +692,7 @@ export function StoriesView(): React.JSX.Element {
   const [dialogOpen, setDialogOpen] = useState(false)
   // Filter the story list to stories whose cast includes this character id ('' = all).
   const [castFilter, setCastFilter] = useState('')
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     loadList(workspace)
@@ -702,6 +703,10 @@ export function StoriesView(): React.JSX.Element {
     () => (castFilter ? stories.filter((s) => s.character_ids.includes(castFilter)) : stories),
     [stories, castFilter]
   )
+  const PAGE_SIZE = 20
+  const totalPages = Math.max(1, Math.ceil(shownStories.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = shownStories.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   if (active) {
     return (
@@ -780,75 +785,116 @@ export function StoriesView(): React.JSX.Element {
   return (
     <>
       <div className="h-full overflow-y-auto p-8">
-        <div className="flex items-center justify-between mb-6 gap-3">
-          <h2 className="text-2xl font-semibold text-ink-900">Stories</h2>
-          <div className="flex items-center gap-2">
-            {characters.length > 0 && (
-              <select
-                value={castFilter}
-                onChange={(e) => setCastFilter(e.target.value)}
-                title="Filter stories by a character in the cast"
-                className="rounded-md border border-ink-200 bg-surface px-2 py-2 text-sm"
-              >
-                <option value="">All characters</option>
-                {characters.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              type="button"
-              onClick={() => setDialogOpen(true)}
-              className="rounded-md bg-accent-500 px-4 py-2 text-sm text-white font-medium hover:bg-accent-600"
-            >
-              New story…
-            </button>
-          </div>
-        </div>
-        {stories.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-ink-700">
-            No stories yet. Click <span className="font-medium">New story…</span> to begin.
-          </div>
-        ) : shownStories.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-ink-700">
-            No stories include the selected character.
-          </div>
-        ) : (
-          <ul className="grid grid-cols-2 gap-3">
-            {shownStories.map((s) => (
-              <li key={s.id || s.slug} className="relative group">
-                <button
-                  type="button"
-                  onClick={() => open(workspace, s.id)}
-                  className={`block w-full text-left rounded-lg border bg-surface p-4 pr-10 hover:bg-ink-50 transition ${
-                    s.id === selectedId ? 'border-accent-500' : 'border-ink-200'
-                  }`}
-                >
-                  <div className="font-medium text-ink-900 truncate">{s.title || s.slug}</div>
-                  <div className="text-xs text-ink-700 mt-1">
-                    Updated {new Date(s.updated_at).toLocaleString()}
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  title="Delete story"
-                  onClick={async (e) => {
-                    e.stopPropagation()
-                    if (await askConfirm(`Delete "${s.title || s.slug}" and all its chapters?`)) {
-                      await remove(workspace, s.id)
-                    }
+        <div className="mx-auto max-w-4xl">
+          <div className="flex items-center justify-between mb-6 gap-3">
+            <h2 className="text-2xl font-semibold text-ink-900">Stories</h2>
+            <div className="flex items-center gap-2">
+              {characters.length > 0 && (
+                <select
+                  value={castFilter}
+                  onChange={(e) => {
+                    setCastFilter(e.target.value)
+                    setPage(1)
                   }}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-md text-ink-700 hover:bg-danger/15 hover:text-danger flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition text-lg leading-none"
-                  aria-label={`Delete ${s.title}`}
+                  title="Filter stories by a character in the cast"
+                  className="rounded-md border border-ink-200 bg-surface px-2 py-2 text-sm"
                 >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+                  <option value="">All characters</option>
+                  {characters.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() => setDialogOpen(true)}
+                className="rounded-md bg-accent-500 px-4 py-2 text-sm text-white font-medium hover:bg-accent-600"
+              >
+                New story…
+              </button>
+            </div>
+          </div>
+          {stories.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-ink-700">
+              No stories yet. Click <span className="font-medium">New story…</span> to begin.
+            </div>
+          ) : shownStories.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-ink-700">
+              No stories include the selected character.
+            </div>
+          ) : (
+            <>
+              <ul className="flex flex-col gap-2">
+                {pageItems.map((s) => {
+                  const blurb = (s.description || s.premise).trim()
+                  const chapters = s.chapterCount ?? 0
+                  return (
+                    <li key={s.id || s.slug} className="relative group">
+                      <button
+                        type="button"
+                        onClick={() => open(workspace, s.id)}
+                        className={`block w-full text-left rounded-lg border bg-surface p-4 pr-10 hover:bg-ink-50 transition ${
+                          s.id === selectedId ? 'border-accent-500' : 'border-ink-200'
+                        }`}
+                      >
+                        <div className="font-medium text-ink-900 truncate">{s.title || s.slug}</div>
+                        {blurb && (
+                          <div className="mt-1 text-sm text-ink-700 line-clamp-2">{blurb}</div>
+                        )}
+                        {/* Cast avatars could go here later — keeping the row uncrowded for now. */}
+                        <div className="mt-2 text-xs text-ink-700">
+                          {chapters} {chapters === 1 ? 'chapter' : 'chapters'} · Updated{' '}
+                          {new Date(s.updated_at).toLocaleDateString()}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete story"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (
+                            await askConfirm(`Delete "${s.title || s.slug}" and all its chapters?`)
+                          ) {
+                            await remove(workspace, s.id)
+                          }
+                        }}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-md text-ink-700 hover:bg-danger/15 hover:text-danger flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition text-lg leading-none"
+                        aria-label={`Delete ${s.title}`}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+              {shownStories.length > PAGE_SIZE && (
+                <div className="mt-4 flex items-center justify-center gap-3 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className="rounded-md border border-ink-200 bg-surface px-3 py-1 hover:bg-ink-100 disabled:opacity-40"
+                  >
+                    ‹ Prev
+                  </button>
+                  <span className="text-ink-700">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className="rounded-md border border-ink-200 bg-surface px-3 py-1 hover:bg-ink-100 disabled:opacity-40"
+                  >
+                    Next ›
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
       <NewStoryDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </>

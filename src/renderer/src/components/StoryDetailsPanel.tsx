@@ -7,6 +7,7 @@ import { CharacterPicker } from './CharacterPicker'
 
 interface DraftMeta {
   title: string
+  description: string
   characterIds: string[]
   presetId: string | null
   pluginIds: string[]
@@ -74,6 +75,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
       initializedFor.current = active.meta.id
       setDraft({
         title: active.meta.title,
+        description: active.meta.description,
         characterIds: active.meta.character_ids,
         presetId: active.meta.preset_id,
         pluginIds: active.meta.plugin_ids,
@@ -86,6 +88,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     !!active &&
     !!draft &&
     (draft.title !== active.meta.title ||
+      draft.description !== active.meta.description ||
       JSON.stringify(draft.characterIds) !== JSON.stringify(active.meta.character_ids) ||
       draft.presetId !== active.meta.preset_id ||
       JSON.stringify(draft.pluginIds) !== JSON.stringify(active.meta.plugin_ids) ||
@@ -101,6 +104,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
         try {
           await updateMeta(workspace, active.meta.id, {
             title: draft.title,
+            description: draft.description,
             characterIds: draft.characterIds,
             presetId: draft.presetId,
             pluginIds: draft.pluginIds,
@@ -115,7 +119,15 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, draft?.title, draft?.characterIds, draft?.presetId, draft?.pluginIds, draft?.premise])
+  }, [
+    dirty,
+    draft?.title,
+    draft?.description,
+    draft?.characterIds,
+    draft?.presetId,
+    draft?.pluginIds,
+    draft?.premise
+  ])
 
   if (!active || !draft) return null
 
@@ -145,6 +157,16 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
             <div className="text-xs text-ink-700 mt-1">
               Renaming will move the story folder on save.
             </div>
+          </div>
+          <div>
+            <Label>Description</Label>
+            <textarea
+              value={draft.description}
+              onChange={(e) => setField('description', e.target.value)}
+              rows={3}
+              placeholder="A short blurb shown in the story list. Seeded from the premise; edit freely."
+              className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 resize-y"
+            />
           </div>
           <div>
             <Label>Characters</Label>

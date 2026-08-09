@@ -200,6 +200,7 @@ export interface StoryMeta {
   id: string
   slug: string
   title: string
+  description: string
   character_ids: string[]
   preset_id: string | null
   plugin_ids: string[]
@@ -207,6 +208,8 @@ export interface StoryMeta {
   created_at: string
   updated_at: string
   notes: string
+  /** Computed at list time (stories:list), not persisted. */
+  chapterCount?: number
 }
 
 export interface Chapter {
@@ -362,6 +365,7 @@ const api = {
       id: string,
       patch: {
         title?: string
+        description?: string
         characterIds?: string[]
         presetId?: string | null
         pluginIds?: string[]
