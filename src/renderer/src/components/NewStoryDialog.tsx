@@ -88,6 +88,7 @@ export function NewStoryDialog({ open, onClose }: Props): React.JSX.Element | nu
             characters={characters}
             selectedIds={characterIds}
             onToggle={toggleChar}
+            filterable
           />
         </div>
 

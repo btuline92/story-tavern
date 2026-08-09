@@ -1,18 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { useWorkspace } from '../stores/workspace'
 import type { Character } from '../types'
+import { EMPTY_FILTER, filterCharacters, isFilterActive } from '../lib/characterFilter'
 import { AvatarThumb } from './AvatarThumb'
+import { CharacterFilterBar } from './CharacterFilterBar'
 import { CreateWithAiDialog } from './CreateWithAiDialog'
 
 export function CharacterList(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
   const { characters, selectedId, load, importCard, createNew, select } = useCharacters()
   const [aiOpen, setAiOpen] = useState(false)
+  const [filter, setFilter] = useState(EMPTY_FILTER)
 
   useEffect(() => {
     load(workspace)
   }, [workspace, load])
+
+  const shown = useMemo(() => filterCharacters(characters, filter), [characters, filter])
 
   return (
     <div className="flex h-full flex-col border-r border-ink-200 bg-ink-50">
@@ -40,11 +45,19 @@ export function CharacterList(): React.JSX.Element {
           Import…
         </button>
       </div>
+      <CharacterFilterBar characters={characters} value={filter} onChange={setFilter} />
       <ul className="flex-1 overflow-y-auto">
         {characters.length === 0 && (
           <li className="p-4 text-sm text-ink-700">No characters yet. Import a card to begin.</li>
         )}
-        {characters.map((c: Character) => (
+        {characters.length > 0 && shown.length === 0 && (
+          <li className="p-4 text-sm text-ink-700">
+            {isFilterActive(filter)
+              ? 'No characters match the current filters.'
+              : 'No characters yet.'}
+          </li>
+        )}
+        {shown.map((c: Character) => (
           <li key={c.id}>
             <button
               type="button"

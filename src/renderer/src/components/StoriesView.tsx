@@ -688,13 +688,20 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
 export function StoriesView(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
   const { stories, selectedId, active, loadList, open, closeActive, remove } = useStories()
-  const { load: loadChars } = useCharacters()
+  const { characters, load: loadChars } = useCharacters()
   const [dialogOpen, setDialogOpen] = useState(false)
+  // Filter the story list to stories whose cast includes this character id ('' = all).
+  const [castFilter, setCastFilter] = useState('')
 
   useEffect(() => {
     loadList(workspace)
     loadChars(workspace)
   }, [workspace])
+
+  const shownStories = useMemo(
+    () => (castFilter ? stories.filter((s) => s.character_ids.includes(castFilter)) : stories),
+    [stories, castFilter]
+  )
 
   if (active) {
     return (
@@ -773,23 +780,44 @@ export function StoriesView(): React.JSX.Element {
   return (
     <>
       <div className="h-full overflow-y-auto p-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-3">
           <h2 className="text-2xl font-semibold text-ink-900">Stories</h2>
-          <button
-            type="button"
-            onClick={() => setDialogOpen(true)}
-            className="rounded-md bg-accent-500 px-4 py-2 text-sm text-white font-medium hover:bg-accent-600"
-          >
-            New story…
-          </button>
+          <div className="flex items-center gap-2">
+            {characters.length > 0 && (
+              <select
+                value={castFilter}
+                onChange={(e) => setCastFilter(e.target.value)}
+                title="Filter stories by a character in the cast"
+                className="rounded-md border border-ink-200 bg-surface px-2 py-2 text-sm"
+              >
+                <option value="">All characters</option>
+                {characters.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              onClick={() => setDialogOpen(true)}
+              className="rounded-md bg-accent-500 px-4 py-2 text-sm text-white font-medium hover:bg-accent-600"
+            >
+              New story…
+            </button>
+          </div>
         </div>
         {stories.length === 0 ? (
           <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-ink-700">
             No stories yet. Click <span className="font-medium">New story…</span> to begin.
           </div>
+        ) : shownStories.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-ink-700">
+            No stories include the selected character.
+          </div>
         ) : (
           <ul className="grid grid-cols-2 gap-3">
-            {stories.map((s) => (
+            {shownStories.map((s) => (
               <li key={s.id || s.slug} className="relative group">
                 <button
                   type="button"

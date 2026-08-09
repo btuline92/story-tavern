@@ -48,7 +48,7 @@ const CHARACTER_SCHEMA_EXAMPLE = `{
   "personality": "A concise summary of temperament and behavior — e.g. guarded, dryly witty, fiercely loyal.",
   "scenario": "The default situation the character is in when the story opens.",
   "first_mes": "The character's opening message to {{user}}, in their own voice.",
-  "tags": ["elf", "ranger", "grumpy"],
+  "tags": ["female", "elf", "ranger", "grumpy"],
   "appearance_tags": "1girl, silver hair, long hair, green eyes, pointed ears, leather armor, cloak"
 }`
 
@@ -64,7 +64,9 @@ function buildStructureEntries(prompt: string, bible: string): PromptEntry[] {
         '- "description" is the main character sheet (a few paragraphs of prose).\n' +
         '- "personality" and "scenario" are concise.\n' +
         '- "first_mes" is the character\'s opening message; use the {{char}} and {{user}} macros where natural.\n' +
-        '- "tags" is a short array of lowercase strings (genre/trait tags).\n' +
+        '- "tags" is a short array of lowercase strings (genre/trait tags). ALWAYS include a gender ' +
+        'tag as one of them — "female" or "male" (use "woman"/"man" or another fitting term when more ' +
+        'accurate) — so the character can be filtered by gender.\n' +
         '- "appearance_tags" is a comma-separated list of Danbooru/booru visual tags describing ONLY looks ' +
         '(gender count, hair, eyes, body, notable features, clothing) — no personality, no sentences.\n' +
         '- Respond with ONLY the JSON object. No markdown fences, no commentary.\n\n' +

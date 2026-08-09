@@ -152,6 +152,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
               characters={characters}
               selectedIds={draft.characterIds}
               heightClass="max-h-60"
+              filterable
               onToggle={(id) =>
                 setField(
                   'characterIds',
