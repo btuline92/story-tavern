@@ -13,6 +13,7 @@ import { GalleryView } from './components/GalleryView'
 import { PhotographyView } from './components/PhotographyView'
 import { LogsView } from './components/LogsView'
 import { ImageSettingsPanel } from './components/ImageSettings'
+import { SummarizerPanel } from './components/SummarizerPanel'
 import { AppDialogs } from './components/AppDialogs'
 
 type View =
@@ -23,6 +24,7 @@ type View =
   | 'presets'
   | 'plugins'
   | 'images'
+  | 'summarizer'
   | 'logs'
   | 'settings'
 
@@ -34,6 +36,7 @@ const TABS: { id: View; label: string }[] = [
   { id: 'presets', label: 'Presets' },
   { id: 'plugins', label: 'Plugins' },
   { id: 'images', label: 'Images' },
+  { id: 'summarizer', label: 'Summarizer' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' }
 ]
@@ -178,6 +181,13 @@ function App(): React.JSX.Element {
           <div className="h-full overflow-y-auto p-8">
             <h2 className="text-2xl font-semibold text-ink-900 mb-6">Image generation</h2>
             <ImageSettingsPanel />
+          </div>
+        </main>
+      ) : view === 'summarizer' ? (
+        <main className="row-start-2 col-span-2 overflow-hidden">
+          <div className="h-full overflow-y-auto p-8">
+            <h2 className="text-2xl font-semibold text-ink-900 mb-6">Story summarizer</h2>
+            <SummarizerPanel />
           </div>
         </main>
       ) : view === 'logs' ? (

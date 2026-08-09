@@ -2,7 +2,8 @@ import { ipcMain } from 'electron'
 import { ulid } from 'ulid'
 import { getKey } from '../lib/safeStore'
 import { readWorkspaceSettings, resolveActiveModel } from './workspace'
-import { loadStory } from '../lib/storyStorage'
+import { loadStory, updateStoryMeta } from '../lib/storyStorage'
+import type { ProviderId } from './providers'
 import { getPreset, defaultPreset } from '../lib/presetStore'
 import { assemble, stripImageMarkers, type PromptEntry } from '../lib/promptAssembly'
 import { streamContinue } from '../lib/streamGeneration'
@@ -13,6 +14,8 @@ import type { TavernV2Data } from '../lib/tavernCard'
 import type { StoryWithChapters, Chapter } from '../lib/storyStorage'
 
 const activeStreams = new Map<string, AbortController>()
+// A summarization runs before generation and is serialized (one at a time), so a single ref suffices.
+let activeSummary: AbortController | null = null
 
 // --- AI character creation ---
 
@@ -316,6 +319,32 @@ function parseBeats(text: string): string[] {
     .filter((l) => l && !l.startsWith('```'))
 }
 
+/** Build the messages that fold the next batch of chapters into the running summary. */
+function buildSummarizeEntries(
+  systemPrompt: string,
+  existingSummary: string,
+  batch: Chapter[]
+): PromptEntry[] {
+  const parts: string[] = []
+  parts.push(
+    existingSummary.trim()
+      ? `EXISTING SYNOPSIS (covers the story up to this point):\n${existingSummary.trim()}`
+      : 'There is no existing synopsis yet — this is the start of the story.'
+  )
+  const chapterBlocks = batch
+    .map((c) => `## ${c.title || `Chapter ${c.number}`}\n\n${stripImageMarkers(c.content).trim()}`)
+    .join('\n\n')
+  parts.push(`NEW CHAPTERS TO FOLD IN:\n\n${chapterBlocks}`)
+  const last = batch[batch.length - 1]
+  parts.push(
+    `Produce the updated synopsis covering the whole story through "${last.title || `Chapter ${last.number}`}". Output only the synopsis.`
+  )
+  return [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: parts.join('\n\n') }
+  ]
+}
+
 export function registerGenerationIpc(): void {
   ipcMain.handle(
     'generation:continue-stream',
@@ -359,7 +388,12 @@ export function registerGenerationIpc(): void {
         beat,
         beatIndex,
         beatTotal,
-        plugins: activePlugins.map((p) => p.content)
+        plugins: activePlugins.map((p) => p.content),
+        // Summary context — only when the summarizer is enabled; otherwise send full chapters.
+        storySummary: settings.summarizer.enabled ? story.meta.summary : '',
+        summarizedThroughChapter: settings.summarizer.enabled
+          ? (story.meta.summary_through_chapter ?? 0)
+          : 0
       })
 
       const streamId = ulid()
@@ -672,6 +706,126 @@ export function registerGenerationIpc(): void {
       return { character: parsed }
     }
   )
+
+  // Fold the oldest unsummarized chapters into the story's running summary, in batches of M, until the
+  // unsummarized count is back within N+M. Steady state = one batch; a far-behind summary (e.g. after a
+  // wipe) catches up in one call, one LLM request per batch, persisting each so partial progress sticks.
+  // The renderer decides WHEN to call this (when a batch is due), optionally after a confirmation prompt.
+  ipcMain.handle(
+    'generation:summarize',
+    async (
+      _event,
+      workspace: string,
+      storyId: string
+    ): Promise<{ summary: string; summary_through_chapter: number } | { error: string }> => {
+      const settings = await readWorkspaceSettings(workspace)
+      const sum = settings.summarizer
+      if (!sum.enabled) return { error: 'Summarization is disabled in settings.' }
+
+      const story = await loadStory(workspace, storyId)
+      if (!story) return { error: `Story not found: ${storyId}` }
+
+      // Model: dedicated override if set, else the active preset. Hyperparameters follow the model —
+      // the active preset's when using its model (many models are picky, so we don't impose our own),
+      // the summarizer's own generation only when a different model is chosen.
+      const base = resolveActiveModel(settings)
+      let provider: ProviderId = base.provider
+      let model = base.model
+      let generation = base.generation
+      if (sum.modelOverride.enabled && sum.modelOverride.model) {
+        provider = sum.modelOverride.provider
+        model = sum.modelOverride.model
+        generation = sum.generation
+      }
+      const apiKey = await getKey(provider)
+      if (!apiKey) return { error: `No API key saved for ${provider}` }
+
+      const chapters = [...story.chapters].sort((a, b) => a.number - b.number)
+      const target = sum.minChapters + sum.batchSize // fold until unsummarized <= N+M
+      const ctrl = new AbortController()
+      activeSummary = ctrl
+      let runningSummary = story.meta.summary
+      let through = story.meta.summary_through_chapter ?? 0
+      let hardError: string | null = null
+      try {
+        while (!ctrl.signal.aborted) {
+          const unsummarized = chapters.filter((c) => c.number > through)
+          if (unsummarized.length <= target) break
+          const batch = unsummarized.slice(0, Math.max(1, sum.batchSize))
+          const entries = buildSummarizeEntries(sum.prompt, runningSummary, batch)
+          let callError: string | null = null
+          const metrics = await streamContinue(
+            {
+              provider,
+              model,
+              apiKey,
+              generation,
+              entries,
+              disableReasoning: generation.reasoning_level === 'off',
+              openrouter: settings.openrouter
+            },
+            ctrl.signal,
+            {
+              onDelta: () => {},
+              onReasoning: () => {},
+              onDone: () => {},
+              onError: (e) => {
+                callError = e
+              }
+            }
+          )
+          await logApiCall(workspace, {
+            provider,
+            model,
+            kind: 'summarize',
+            url: metrics.url,
+            request_body: metrics.requestBody,
+            status: metrics.status,
+            response_body: JSON.stringify(
+              { text: metrics.fullText, reasoning: metrics.reasoningText },
+              null,
+              2
+            ),
+            error: metrics.error,
+            duration_ms: metrics.durationMs,
+            story_id: storyId
+          })
+          if (ctrl.signal.aborted) break
+          if (callError || metrics.error) {
+            hardError = callError ?? metrics.error
+            break
+          }
+          const next = metrics.fullText.trim()
+          if (!next) {
+            hardError = 'The model returned an empty summary.'
+            break
+          }
+          runningSummary = next
+          through = batch[batch.length - 1].number
+          // Persist each completed batch so catch-up progress survives a later cancel/error.
+          await updateStoryMeta(workspace, storyId, {
+            summary: runningSummary,
+            summaryThroughChapter: through
+          })
+        }
+      } finally {
+        if (activeSummary === ctrl) activeSummary = null
+      }
+
+      if (hardError) return { error: `Summarization failed: ${hardError}` }
+      if (ctrl.signal.aborted) return { error: 'aborted' }
+      return { summary: runningSummary, summary_through_chapter: through }
+    }
+  )
+
+  ipcMain.handle('generation:cancel-summarize', async (): Promise<boolean> => {
+    if (activeSummary) {
+      activeSummary.abort()
+      activeSummary = null
+      return true
+    }
+    return false
+  })
 
   ipcMain.handle('generation:cancel', async (_e, streamId: string) => {
     const ctrl = activeStreams.get(streamId)

@@ -115,12 +115,31 @@ export interface ModelPreset {
   generation: GenerationSettings
 }
 
+/** Rolling-summary settings. When enabled, the oldest unsummarized chapters are folded into a running
+ *  summary and dropped from context, keeping recent chapters verbatim. */
+export interface SummarizerSettings {
+  enabled: boolean
+  /** N — minimum recent (unsummarized) chapters to keep in context. */
+  minChapters: number
+  /** M — chapters folded into the summary per run (the oldest unsummarized ones). */
+  batchSize: number
+  /** Ask for confirmation before running a (potentially slow) summarization. */
+  confirmBeforeSummarizing: boolean
+  /** Editable instruction telling the model how to summarize. */
+  prompt: string
+  /** Dedicated generation settings for the summarizer call. */
+  generation: GenerationSettings
+  /** Optional cheaper/faster model just for summarization; falls back to the active preset. */
+  modelOverride: TagModelOverride
+}
+
 export interface WorkspaceSettings {
   selectedProvider: ProviderId
   models: Record<ProviderId, string>
   activePresetId: string | null
   generation: GenerationSettings
   image: ImageSettings
+  summarizer: SummarizerSettings
   openrouter: OpenRouterSettings
   /** Named model configs; `activeModelPresetId` selects the one used for generation. */
   modelPresets: ModelPreset[]
@@ -249,6 +268,52 @@ const DEFAULT_IMAGE: ImageSettings = {
   // Fast-tagging defaults: low temperature, no extended thinking.
   generation: { ...DEFAULT_GENERATION, temperature: 0.3, reasoning_level: 'off' },
   tagModelOverride: { enabled: false, provider: 'anthropic', model: '' }
+}
+
+const DEFAULT_SUMMARIZER_PROMPT = `You maintain a running synopsis of a novel so it can be written without re-reading every chapter.
+
+Given the existing synopsis (if any) and the next chapters, output a single UPDATED synopsis that covers the whole story so far through the last chapter provided. Requirements:
+- Capture all important plot events, decisions, and turning points in order.
+- Track each character's arc, relationships, knowledge, and current state.
+- Preserve continuity a writer needs to stay consistent: locations, timeline, ongoing conflicts, unresolved threads, secrets/promises, and who knows what.
+- Be concise but complete — prefer specifics over vague gestures. Past tense, third person, prose (not bullet lists).
+- NSFW content is allowed if the story contains it.
+
+Output ONLY the updated synopsis. No preamble, no headings, no commentary.`
+
+const DEFAULT_SUMMARIZER: SummarizerSettings = {
+  enabled: false,
+  minChapters: 4,
+  batchSize: 4,
+  confirmBeforeSummarizing: true,
+  prompt: DEFAULT_SUMMARIZER_PROMPT,
+  // Low temperature, no extended thinking — summaries should be faithful, not creative.
+  generation: { ...DEFAULT_GENERATION, temperature: 0.3, reasoning_level: 'off' },
+  modelOverride: { enabled: false, provider: 'anthropic', model: '' }
+}
+
+function mergeSummarizer(raw: unknown): SummarizerSettings {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<SummarizerSettings>
+  const rawOverride = (r.modelOverride ?? {}) as Partial<TagModelOverride>
+  const rawGen = (r.generation ?? {}) as Partial<GenerationSettings>
+  return {
+    enabled: typeof r.enabled === 'boolean' ? r.enabled : DEFAULT_SUMMARIZER.enabled,
+    minChapters:
+      typeof r.minChapters === 'number' && r.minChapters >= 1
+        ? Math.floor(r.minChapters)
+        : DEFAULT_SUMMARIZER.minChapters,
+    batchSize:
+      typeof r.batchSize === 'number' && r.batchSize >= 1
+        ? Math.floor(r.batchSize)
+        : DEFAULT_SUMMARIZER.batchSize,
+    confirmBeforeSummarizing:
+      typeof r.confirmBeforeSummarizing === 'boolean'
+        ? r.confirmBeforeSummarizing
+        : DEFAULT_SUMMARIZER.confirmBeforeSummarizing,
+    prompt: typeof r.prompt === 'string' ? r.prompt : DEFAULT_SUMMARIZER.prompt,
+    generation: { ...DEFAULT_SUMMARIZER.generation, ...rawGen, reasoning_level: migrateReasoning(rawGen) },
+    modelOverride: { ...DEFAULT_SUMMARIZER.modelOverride, ...rawOverride }
+  }
 }
 
 const DEFAULT_OPENROUTER: OpenRouterSettings = {
@@ -430,6 +495,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   activePresetId: null,
   generation: { ...DEFAULT_GENERATION },
   image: { ...DEFAULT_IMAGE },
+  summarizer: { ...DEFAULT_SUMMARIZER },
   openrouter: { ...DEFAULT_OPENROUTER },
   modelPresets: [{ ...DEFAULT_MODEL_PRESET, generation: { ...DEFAULT_GENERATION } }],
   activeModelPresetId: 'default'
@@ -513,6 +579,7 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
     activePresetId: r.activePresetId ?? r.activePromptId ?? null,
     generation,
     image: mergeImage(r.image),
+    summarizer: mergeSummarizer(r.summarizer),
     openrouter: mergeOpenRouter(r.openrouter),
     modelPresets,
     activeModelPresetId

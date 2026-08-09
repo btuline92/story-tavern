@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Chapter, ImageGenResult, ImagePhase, StoryMeta, StoryWithChapters } from '../types'
 import { useSettings } from './settings'
+import { askConfirm } from './dialog'
 
 function newGenId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -52,6 +53,10 @@ interface StoriesState {
   imageStatus: ImagePhase | null
   imageError: string | null
   imageGenId: string | null
+  /** True while a story summarization LLM call is in flight. */
+  summarizing: boolean
+  /** Set when the user declines a summarization prompt; cleared when the chapter set changes. */
+  summaryDismissed: boolean
   /** "Magic Complete" loop state: plan the chapter outline into beats, then write each in turn. */
   magicActive: boolean
   /** True while the beat-planning LLM call is in flight (before any prose is written). */
@@ -110,6 +115,11 @@ interface StoriesState {
   /** Plan the chapter outline into beats, then write each beat (one passage + image) in turn. */
   startMagicComplete: (workspace: string) => Promise<void>
   stopMagicComplete: () => Promise<void>
+  /** If enabled and a batch of old chapters is due, (optionally confirm and) summarize them.
+   *  Returns false if the user cancelled the summarization — the caller should abort generation. */
+  maybeSummarize: (workspace: string) => Promise<boolean>
+  /** Abort an in-flight summarization. */
+  cancelSummarize: () => Promise<void>
   /** Generate an inline image for a passage and append its marker to the chapter. */
   generateImage: (workspace: string, chapterNumber: number, passageText: string) => Promise<void>
   /** Generate an image and return the result without inserting it (for in-place replace). */
@@ -151,6 +161,8 @@ export const useStories = create<StoriesState>((set, get) => ({
   magicBeats: [],
   magicBeatIndex: 0,
   lastGeneratedText: '',
+  summarizing: false,
+  summaryDismissed: false,
   loadList: async (workspace) => {
     set({ loading: true })
     const list = await window.api.stories.list(workspace)
@@ -165,7 +177,8 @@ export const useStories = create<StoriesState>((set, get) => ({
       generationError: null,
       streamBuffer: '',
       reasoningBuffer: '',
-      lastGen: null
+      lastGen: null,
+      summaryDismissed: false
     })
   },
   closeActive: () =>
@@ -230,7 +243,7 @@ export const useStories = create<StoriesState>((set, get) => ({
     if (!current) return
     const created = await window.api.stories.addChapter(workspace, current.meta.id)
     const reloaded = await window.api.stories.load(workspace, current.meta.id)
-    set({ active: reloaded, activeChapterNumber: created.number })
+    set({ active: reloaded, activeChapterNumber: created.number, summaryDismissed: false })
   },
   deleteChapter: async (workspace, chapterNumber) => {
     const current = get().active
@@ -263,7 +276,8 @@ export const useStories = create<StoriesState>((set, get) => ({
       lastGen: null,
       streamBuffer: '',
       reasoningBuffer: '',
-      generationError: null
+      generationError: null,
+      summaryDismissed: false
     })
   },
   selectChapter: (chapterNumber) =>
@@ -276,10 +290,13 @@ export const useStories = create<StoriesState>((set, get) => ({
     }),
 
   startContinue: async (workspace, userNote, beat, beatIndex, beatTotal) => {
+    if (get().generating) return
+    // Fold old chapters into the summary first if a batch is due. Skipped during Magic Complete —
+    // it summarizes once at the top of its run, not per beat. A cancelled summarization aborts.
+    if (!get().magicActive && !(await get().maybeSummarize(workspace))) return
     const current = get().active
     const chapterNumber = get().activeChapterNumber
     if (!current || chapterNumber == null) return
-    if (get().generating) return
     const ch = current.chapters.find((c) => c.number === chapterNumber)
 
     // Remember which model preset this chapter was generated with (restored when reopened).
@@ -426,6 +443,9 @@ export const useStories = create<StoriesState>((set, get) => ({
     if (!cur0 || chapterNumber == null) return
     const storyId = cur0.meta.id
     const imageEnabled = useSettings.getState().settings?.image.enabled ?? false
+    // Summarize once up front if due (the per-beat startContinue calls skip it via magicActive).
+    if (!(await get().maybeSummarize(workspace))) return // cancelled
+    if (get().active?.meta.id !== storyId) return // story changed during summarization
     set({
       magicActive: true,
       magicPlanning: true,
@@ -483,6 +503,67 @@ export const useStories = create<StoriesState>((set, get) => ({
     settleActiveChunk('error')
     if (get().generating) await get().cancelContinue()
     if (get().imageGenerating) await get().cancelImage()
+  },
+  maybeSummarize: async (workspace) => {
+    const s = useSettings.getState().settings?.summarizer
+    const current = get().active
+    if (!s || !s.enabled || !current) return true
+    if (get().summarizing || get().summaryDismissed) return true
+    const through = current.meta.summary_through_chapter ?? 0
+    const unsummarized = current.chapters
+      .filter((c) => c.number > through)
+      .sort((a, b) => a.number - b.number)
+    // Trigger only once the unsummarized count EXCEEDS N+M (not equals) — the chapter that tips the
+    // count past N+M is what kicks off a summarization.
+    if (unsummarized.length <= s.minChapters + s.batchSize) return true
+
+    if (s.confirmBeforeSummarizing) {
+      // Label the FULL range the catch-up will cover — the IPC folds M at a time until <= N+M, which
+      // can span several batches. (Display only; the folding logic lives in the summarize IPC.)
+      const m = Math.max(1, s.batchSize)
+      const target = s.minChapters + s.batchSize
+      let foldCount = 0
+      let remaining = unsummarized.length
+      while (remaining > target) {
+        foldCount += m
+        remaining -= m
+      }
+      const folded = unsummarized.slice(0, Math.min(foldCount, unsummarized.length))
+      const first = folded[0].number
+      const last = folded[folded.length - 1].number
+      const label = first === last ? `chapter ${first}` : `chapters ${first}–${last}`
+      const ok = await askConfirm(
+        `Summarize ${label} to keep the story context compact? This runs an extra model call and may take a moment.`
+      )
+      // Declining just skips summarizing this time — generation still proceeds (all chapters sent).
+      if (!ok) {
+        set({ summaryDismissed: true })
+        return true
+      }
+    }
+
+    set({ summarizing: true })
+    try {
+      const res = await window.api.generation.summarize(workspace, current.meta.id)
+      // The summarizer persists each completed batch, so reload regardless of outcome to reflect any
+      // (even partial) progress before we decide whether to generate.
+      const reloaded = await window.api.stories.load(workspace, current.meta.id)
+      if (reloaded) set({ active: reloaded })
+      if (res && 'error' in res) {
+        // Cancelled → abort the whole Continue so the user can change settings and retry (partial
+        // progress is saved; the next Continue catches up). Other errors → let generation proceed.
+        if (res.error === 'aborted') return false
+        set({ generationError: res.error })
+        return true
+      }
+      set({ summaryDismissed: false })
+      return true
+    } finally {
+      set({ summarizing: false })
+    }
+  },
+  cancelSummarize: async () => {
+    await window.api.generation.cancelSummarize()
   },
 
   _onStreamDelta: (streamId, delta) => {

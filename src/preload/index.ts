@@ -72,6 +72,16 @@ export interface ImageSettings {
   tagModelOverride: TagModelOverride
 }
 
+export interface SummarizerSettings {
+  enabled: boolean
+  minChapters: number
+  batchSize: number
+  confirmBeforeSummarizing: boolean
+  prompt: string
+  generation: GenerationSettings
+  modelOverride: TagModelOverride
+}
+
 export interface OpenRouterSettings {
   order: string[]
   allowFallbacks: boolean
@@ -91,6 +101,7 @@ export interface WorkspaceSettings {
   activePresetId: string | null
   generation: GenerationSettings
   image: ImageSettings
+  summarizer: SummarizerSettings
   openrouter: OpenRouterSettings
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
@@ -208,6 +219,8 @@ export interface StoryMeta {
   created_at: string
   updated_at: string
   notes: string
+  summary: string
+  summary_through_chapter: number | null
   /** Computed at list time (stories:list), not persisted. */
   chapterCount?: number
 }
@@ -238,6 +251,7 @@ export type ApiLogKind =
   | 'create-character'
   | 'image-tags'
   | 'image-generate'
+  | 'summarize'
 
 export interface ApiLogEntry {
   id: string
@@ -445,6 +459,13 @@ const api = {
       prompt: string
     ): Promise<{ character: GeneratedCharacter } | { error: string }> =>
       ipcRenderer.invoke('generation:create-character', workspace, prompt),
+    summarize: (
+      workspace: string,
+      storyId: string
+    ): Promise<{ summary: string; summary_through_chapter: number } | { error: string }> =>
+      ipcRenderer.invoke('generation:summarize', workspace, storyId),
+    cancelSummarize: (): Promise<boolean> =>
+      ipcRenderer.invoke('generation:cancel-summarize'),
     cancel: (streamId: string): Promise<boolean> =>
       ipcRenderer.invoke('generation:cancel', streamId),
     onDelta: (handler: (streamId: string, delta: string) => void): (() => void) =>

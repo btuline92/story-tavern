@@ -18,6 +18,11 @@ export interface StoryMeta {
   created_at: string
   updated_at: string
   notes: string
+  /** Rolling summary of earlier chapters (empty = none); covers chapters up through
+   *  summary_through_chapter. Used to condense old chapters out of the LLM context. */
+  summary: string
+  /** Last chapter NUMBER the summary covers; null = no summary. Wiped on any chapter deletion. */
+  summary_through_chapter: number | null
   /** Number of chapters — computed at list time (listStoriesWithCounts), NOT persisted to disk. */
   chapterCount?: number
 }
@@ -49,7 +54,10 @@ function withDefaults(
     premise: typeof meta.premise === 'string' ? meta.premise : '',
     created_at: meta.created_at ?? new Date().toISOString(),
     updated_at: meta.updated_at ?? new Date().toISOString(),
-    notes: typeof meta.notes === 'string' ? meta.notes : ''
+    notes: typeof meta.notes === 'string' ? meta.notes : '',
+    summary: typeof meta.summary === 'string' ? meta.summary : '',
+    summary_through_chapter:
+      typeof meta.summary_through_chapter === 'number' ? meta.summary_through_chapter : null
   }
 }
 
@@ -298,6 +306,8 @@ export interface StoryMetaUpdate {
   pluginIds?: string[]
   premise?: string
   notes?: string
+  summary?: string
+  summaryThroughChapter?: number | null
 }
 
 export async function updateStoryMeta(
@@ -327,6 +337,11 @@ export async function updateStoryMeta(
     plugin_ids: patch.pluginIds !== undefined ? patch.pluginIds : current.plugin_ids,
     premise: patch.premise !== undefined ? patch.premise : current.premise,
     notes: patch.notes !== undefined ? patch.notes : current.notes,
+    summary: patch.summary !== undefined ? patch.summary : current.summary,
+    summary_through_chapter:
+      patch.summaryThroughChapter !== undefined
+        ? patch.summaryThroughChapter
+        : current.summary_through_chapter,
     updated_at: new Date().toISOString()
   }
   await writeStoryMeta(workspace, updated)
@@ -426,4 +441,11 @@ export async function deleteChapter(
   }
   const dir = storyDir(workspace, story.meta.slug)
   await rm(join(dir, `chapter-${String(chapterNumber).padStart(2, '0')}.md`), { force: true })
+  // Only wipe the summary if the deleted chapter was PART of it (number <= summary_through_chapter):
+  // the running summary may describe events from that now-removed chapter, so it's stale. Deleting a
+  // more recent, unsummarized chapter leaves the summary valid — keep it so it doesn't restart.
+  const through = story.meta.summary_through_chapter
+  if (through !== null && chapterNumber <= through) {
+    await updateStoryMeta(workspace, storyId, { summary: '', summaryThroughChapter: null })
+  }
 }

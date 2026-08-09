@@ -22,6 +22,10 @@ export interface AssemblyContext {
   beatTotal?: number
   /** Active plugin decorators — extra system-prompt emphasis appended near the end. */
   plugins?: string[]
+  /** Running summary of earlier chapters (empty/absent = none). Injected before the manuscript. */
+  storySummary?: string
+  /** Chapters with number <= this are covered by the summary and excluded from the manuscript. */
+  summarizedThroughChapter?: number
 }
 
 /**
@@ -76,6 +80,8 @@ function manuscriptText(ctx: AssemblyContext): string {
   const lines: string[] = []
   for (const ch of ctx.chapters) {
     if (ch.number > ctx.activeChapterNumber) continue
+    // Chapters covered by the running summary are represented by the summary block, not their prose.
+    if (ch.number <= (ctx.summarizedThroughChapter ?? 0)) continue
     const heading = ch.title || `Chapter ${ch.number}`
     // For the active chapter only, prepend the outline so the model knows what
     // should happen in the passage it's about to continue. Earlier chapters'
@@ -149,7 +155,8 @@ function expandMarker(markerType: MarkerType, ctx: AssemblyContext): PromptEntry
 }
 
 function continueNudge(ctx: AssemblyContext): PromptEntry {
-  const empty = manuscriptText(ctx).length === 0
+  // A summary counts as prior story — only "begin" when there's neither manuscript prose nor a summary.
+  const empty = manuscriptText(ctx).length === 0 && !ctx.storySummary?.trim()
   const note = ctx.userNote?.trim() ? `\n\nAuthor note: ${ctx.userNote.trim()}` : ''
   const content = empty
     ? `Begin writing the story titled "${ctx.storyTitle}". Open in flowing prose.${note}`
@@ -157,14 +164,44 @@ function continueNudge(ctx: AssemblyContext): PromptEntry {
   return { role: 'user', content }
 }
 
+/** The condensed earlier-chapters summary, rendered as a USER block (story content, not a system
+ *  instruction) placed right before the manuscript, headed with the chapter range it covers. */
+function buildSummaryEntry(ctx: AssemblyContext): PromptEntry | null {
+  const text = ctx.storySummary?.trim()
+  if (!text) return null
+  const through = ctx.summarizedThroughChapter ?? 0
+  const covered = ctx.chapters.filter((c) => c.number <= through).map((c) => c.number)
+  const first = covered.length ? Math.min(...covered) : 0
+  const range =
+    through <= 0
+      ? 'earlier chapters'
+      : first > 0 && first !== through
+        ? `Chapters ${first}–${through}`
+        : `Chapter ${through}`
+  return {
+    role: 'user',
+    content: `--- STORY SO FAR (summary of ${range}) ---\n${text}\n--- END SUMMARY ---`
+  }
+}
+
 /** Walk a preset's enabled blocks in order, expanding markers, producing a flat entry list. */
 export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
   const entries: PromptEntry[] = []
   let manuscriptSeen = false
+  // The running summary of condensed earlier chapters — a USER block placed immediately before the
+  // manuscript so it reads as story content continuous with the recent prose (see buildSummaryEntry).
+  const summaryEntry = buildSummaryEntry(ctx)
+  let summaryPushed = false
   for (const block of preset.blocks) {
     if (!block.enabled) continue
     if (block.marker) {
-      if (block.markerType === 'manuscript') manuscriptSeen = true
+      if (block.markerType === 'manuscript') {
+        manuscriptSeen = true
+        if (summaryEntry && !summaryPushed) {
+          entries.push(summaryEntry)
+          summaryPushed = true
+        }
+      }
       const entry = block.markerType ? expandMarker(block.markerType, ctx) : null
       if (entry) entries.push(entry)
     } else {
@@ -172,8 +209,12 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
       if (content) entries.push({ role: block.role, content })
     }
   }
-  // If the preset has no manuscript marker, the model still needs the prose to continue.
+  // If the preset has no manuscript marker, the model still needs the summary + prose to continue.
   if (!manuscriptSeen) {
+    if (summaryEntry && !summaryPushed) {
+      entries.push(summaryEntry)
+      summaryPushed = true
+    }
     const ms = manuscriptText(ctx)
     if (ms)
       entries.push({ role: 'user', content: `--- MANUSCRIPT ---\n${ms}\n--- END MANUSCRIPT ---` })

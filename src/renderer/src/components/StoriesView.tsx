@@ -71,6 +71,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     imageGenerating,
     imageStatus,
     imageError,
+    summarizing,
     magicActive,
     magicPlanning,
     magicBeats,
@@ -82,6 +83,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     startContinue,
     regenerate,
     cancelContinue,
+    cancelSummarize,
     generateImage,
     regenerateImage,
     cancelImage,
@@ -216,7 +218,7 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     await setActiveModelPreset(workspace, id)
   }
 
-  const busy = generating || imageGenerating || magicActive
+  const busy = generating || summarizing || imageGenerating || magicActive
 
   const proseTail = (): string => {
     const prose = contentDraft.replace(IMAGE_MARKER_RE, '').trim()
@@ -545,7 +547,21 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
             placeholder="Author note for this generation (optional, not saved)"
             className="flex-1 rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-50"
           />
-          {magicActive ? (
+          {summarizing ? (
+            <>
+              <div className="flex items-center gap-2 text-xs text-accent-600 whitespace-nowrap">
+                <span className="inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse" />
+                Summarizing earlier chapters…
+              </div>
+              <button
+                type="button"
+                onClick={() => cancelSummarize()}
+                className="rounded-md border border-danger/50 bg-surface px-4 py-2 text-sm text-danger font-medium hover:bg-danger/10"
+              >
+                Cancel
+              </button>
+            </>
+          ) : magicActive ? (
             <>
               <div className="flex items-center gap-2 text-xs text-accent-600 whitespace-nowrap">
                 <span className="inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse" />

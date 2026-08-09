@@ -20,6 +20,7 @@ export type ApiLogKind =
   | 'create-character'
   | 'image-tags'
   | 'image-generate'
+  | 'summarize'
 
 export interface ApiLogEntry {
   id: string

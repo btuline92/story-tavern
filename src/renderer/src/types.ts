@@ -142,6 +142,16 @@ export interface ImageSettings {
   tagModelOverride: TagModelOverride
 }
 
+export interface SummarizerSettings {
+  enabled: boolean
+  minChapters: number
+  batchSize: number
+  confirmBeforeSummarizing: boolean
+  prompt: string
+  generation: GenerationSettings
+  modelOverride: TagModelOverride
+}
+
 export interface OpenRouterSettings {
   order: string[]
   allowFallbacks: boolean
@@ -161,6 +171,7 @@ export interface WorkspaceSettings {
   activePresetId: string | null
   generation: GenerationSettings
   image: ImageSettings
+  summarizer: SummarizerSettings
   openrouter: OpenRouterSettings
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
@@ -224,6 +235,8 @@ export interface StoryMeta {
   created_at: string
   updated_at: string
   notes: string
+  summary: string
+  summary_through_chapter: number | null
   /** Computed at list time (stories:list), not persisted. */
   chapterCount?: number
 }
@@ -264,6 +277,7 @@ export type ApiLogKind =
   | 'create-character'
   | 'image-tags'
   | 'image-generate'
+  | 'summarize'
 
 export interface ApiLogEntry {
   id: string
