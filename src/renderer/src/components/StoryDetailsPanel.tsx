@@ -45,7 +45,7 @@ function Label({ children }: { children: React.ReactNode }): React.JSX.Element {
 }
 
 export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | null {
-  const { active, updateMeta } = useStories()
+  const { active, activeChapterNumber, magicActive, magicBeatIndex, updateMeta } = useStories()
   const { characters, load: loadChars } = useCharacters()
   const { presets, load: loadPresets } = usePresets()
   const { plugins, load: loadPlugins } = usePlugins()
@@ -134,6 +134,16 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
   const setField = <K extends keyof DraftMeta>(key: K, value: DraftMeta[K]): void => {
     setDraft({ ...draft, [key]: value })
   }
+
+  // Active chapter's persisted Magic Complete beats + progress (for the inspection section below).
+  const activeChapter =
+    activeChapterNumber != null
+      ? (active.chapters.find((c) => c.number === activeChapterNumber) ?? null)
+      : null
+  const beats = activeChapter?.magic_beats ?? []
+  const beatsDone = activeChapter?.magic_beats_done ?? 0
+  // The beat currently being written during a live run (1-based); else the completed count.
+  const currentBeat = magicActive ? magicBeatIndex : beatsDone
 
   return (
     <div className="flex h-full flex-col">
@@ -260,6 +270,45 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
               className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 resize-y"
             />
           </div>
+        </Section>
+
+        <Section title="Magic Complete" defaultOpen={false}>
+          {beats.length === 0 ? (
+            <div className="text-xs text-ink-700">
+              No beats yet. Run Magic Complete on a chapter to plan and write its beats; they&apos;ll
+              show here with progress, and an interrupted run can be resumed.
+            </div>
+          ) : (
+            <>
+              <div className="text-xs text-ink-700">
+                Beat {Math.min(currentBeat, beats.length)} / {beats.length}
+                {magicActive ? ' · writing…' : beatsDone >= beats.length ? ' · done' : ' · paused'}
+              </div>
+              <ol className="space-y-1">
+                {beats.map((beat, i) => {
+                  const done = i < beatsDone
+                  const writing = magicActive && i === magicBeatIndex - 1
+                  return (
+                    <li
+                      key={i}
+                      className={`flex gap-2 rounded-md border px-2 py-1.5 text-xs ${
+                        writing
+                          ? 'border-accent-500 bg-accent-500/10 text-ink-900'
+                          : done
+                            ? 'border-ink-200 bg-ink-50 text-ink-700'
+                            : 'border-dashed border-ink-200 text-ink-700'
+                      }`}
+                    >
+                      <span className="shrink-0 tabular-nums">
+                        {writing ? '▶' : done ? '✓' : `${i + 1}.`}
+                      </span>
+                      <span className="min-w-0 flex-1">{beat}</span>
+                    </li>
+                  )
+                })}
+              </ol>
+            </>
+          )}
         </Section>
 
         {/*

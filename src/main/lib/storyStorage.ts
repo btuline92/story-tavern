@@ -72,6 +72,11 @@ export interface Chapter {
   content: string
   /** Id of the model preset this chapter was last generated with (restored when reopened). */
   model_preset_id: string | null
+  /** Magic Complete plan for this chapter (empty = none). Persisted so a run can resume after a
+   *  stop/error rather than re-planning and duplicating prose. */
+  magic_beats: string[]
+  /** How many of magic_beats have been fully written (0..length). done < length = an unfinished run. */
+  magic_beats_done: number
   created_at: string
   updated_at: string
 }
@@ -82,6 +87,8 @@ interface ChapterFrontmatter {
   title: string
   outline?: string
   model_preset_id?: string | null
+  magic_beats?: string[]
+  magic_beats_done?: number
   created_at: string
   updated_at: string
 }
@@ -168,6 +175,10 @@ async function readChapter(
       ...fm,
       outline: typeof fm.outline === 'string' ? fm.outline : '',
       model_preset_id: typeof fm.model_preset_id === 'string' ? fm.model_preset_id : null,
+      magic_beats: Array.isArray(fm.magic_beats)
+        ? fm.magic_beats.filter((b): b is string => typeof b === 'string')
+        : [],
+      magic_beats_done: typeof fm.magic_beats_done === 'number' ? fm.magic_beats_done : 0,
       content: body
     }
   } catch {
@@ -182,6 +193,8 @@ async function writeChapter(workspace: string, slug: string, chapter: Chapter): 
     title: chapter.title,
     outline: chapter.outline,
     model_preset_id: chapter.model_preset_id,
+    magic_beats: chapter.magic_beats,
+    magic_beats_done: chapter.magic_beats_done,
     created_at: chapter.created_at,
     updated_at: chapter.updated_at
   }
@@ -291,6 +304,8 @@ export async function createStory(
     outline: '',
     content: '',
     model_preset_id: null,
+    magic_beats: [],
+    magic_beats_done: 0,
     created_at: now,
     updated_at: now
   }
@@ -360,6 +375,8 @@ export interface UpdateChapterInput {
   outline?: string
   content?: string
   model_preset_id?: string | null
+  magic_beats?: string[]
+  magic_beats_done?: number
 }
 
 export async function updateChapter(
@@ -379,6 +396,9 @@ export async function updateChapter(
     content: patch.content !== undefined ? patch.content : chapter.content,
     model_preset_id:
       patch.model_preset_id !== undefined ? patch.model_preset_id : chapter.model_preset_id,
+    magic_beats: patch.magic_beats !== undefined ? patch.magic_beats : chapter.magic_beats,
+    magic_beats_done:
+      patch.magic_beats_done !== undefined ? patch.magic_beats_done : chapter.magic_beats_done,
     updated_at: new Date().toISOString()
   }
   await writeChapter(workspace, story.meta.slug, updated)
@@ -421,6 +441,8 @@ export async function addChapter(
     outline: '',
     content: '',
     model_preset_id: null,
+    magic_beats: [],
+    magic_beats_done: 0,
     created_at: now,
     updated_at: now
   }

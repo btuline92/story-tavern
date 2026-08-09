@@ -96,7 +96,14 @@ interface StoriesState {
   updateChapter: (
     workspace: string,
     chapterNumber: number,
-    patch: { title?: string; outline?: string; content?: string; model_preset_id?: string | null }
+    patch: {
+      title?: string
+      outline?: string
+      content?: string
+      model_preset_id?: string | null
+      magic_beats?: string[]
+      magic_beats_done?: number
+    }
   ) => Promise<Chapter>
   addChapter: (workspace: string) => Promise<void>
   /** Delete a chapter and its file. No-op on the last remaining chapter. If the deleted
@@ -446,31 +453,45 @@ export const useStories = create<StoriesState>((set, get) => ({
     // Summarize once up front if due (the per-beat startContinue calls skip it via magicActive).
     if (!(await get().maybeSummarize(workspace))) return // cancelled
     if (get().active?.meta.id !== storyId) return // story changed during summarization
+    // Resume an unfinished run when the chapter has saved beats; otherwise plan fresh.
+    const ch = get().active?.chapters.find((c) => c.number === chapterNumber)
+    const saved = ch?.magic_beats ?? []
+    const savedDone = ch?.magic_beats_done ?? 0
+    const resuming = saved.length > 0 && savedDone < saved.length
+    let beats: string[] = saved
+    let startIndex = savedDone
     set({
       magicActive: true,
-      magicPlanning: true,
-      magicBeats: [],
-      magicBeatIndex: 0,
+      magicPlanning: !resuming,
+      magicBeats: resuming ? saved : [],
+      magicBeatIndex: resuming ? savedDone : 0,
       generationError: null,
       imageError: null
     })
     try {
-      // 1. Break the chapter outline into an ordered list of beats.
-      const planned = await window.api.generation.planBeats(workspace, storyId, chapterNumber)
-      if (!get().magicActive) return // stopped during planning
-      if ('error' in planned) {
-        set({ generationError: planned.error })
-        return
+      if (!resuming) {
+        // 1. Break the chapter outline into an ordered list of beats, and persist the plan.
+        const planned = await window.api.generation.planBeats(workspace, storyId, chapterNumber)
+        if (!get().magicActive) return // stopped during planning
+        if ('error' in planned) {
+          set({ generationError: planned.error })
+          return
+        }
+        if (planned.beats.length === 0) {
+          set({ generationError: 'No beats were produced from the outline.' })
+          return
+        }
+        beats = planned.beats
+        startIndex = 0
+        await get().updateChapter(workspace, chapterNumber, {
+          magic_beats: beats,
+          magic_beats_done: 0
+        })
+        set({ magicPlanning: false, magicBeats: beats })
       }
-      const beats = planned.beats
-      if (beats.length === 0) {
-        set({ generationError: 'No beats were produced from the outline.' })
-        return
-      }
-      set({ magicPlanning: false, magicBeats: beats })
 
-      // 2. Write each beat as its own passage (+ inline image), in order.
-      for (let i = 0; i < beats.length; i++) {
+      // 2. Write each remaining beat as its own passage (+ inline image), in order.
+      for (let i = startIndex; i < beats.length; i++) {
         if (!get().magicActive) break
         const act = get().active
         // Bail if the user navigated to a different story/chapter mid-run.
@@ -485,6 +506,9 @@ export const useStories = create<StoriesState>((set, get) => ({
         if (get().generationStreamId == null) settleActiveChunk('error') // failed to start
         const outcome = await settled
         if (outcome === 'error' || !get().magicActive) break
+
+        // Record progress so a later stop/error resumes from the next beat.
+        await get().updateChapter(workspace, chapterNumber, { magic_beats_done: i + 1 })
 
         // Inline image for this beat (sequential — keeps ordering clean, avoids races).
         if (imageEnabled && get().magicActive) {

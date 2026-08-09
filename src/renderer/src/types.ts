@@ -248,6 +248,8 @@ export interface Chapter {
   outline: string
   content: string
   model_preset_id: string | null
+  magic_beats: string[]
+  magic_beats_done: number
   created_at: string
   updated_at: string
 }

@@ -121,6 +121,11 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
     [active, activeChapterNumber]
   )
 
+  // Persisted Magic Complete progress for the active chapter (drives the Resume button).
+  const magicTotal = chapter?.magic_beats.length ?? 0
+  const magicDone = chapter?.magic_beats_done ?? 0
+  const magicResumable = magicTotal > 0 && magicDone < magicTotal
+
   // Initialize drafts only on (a) chapter switch (id change) or (b) explicit external
   // mutation (Continue appending generated text — signaled by externalChapterRevision
   // bumping in the store). Drafts are user-owned at all other times — never overwritten
@@ -243,11 +248,16 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
   }
 
   const onClearChapter = async (): Promise<void> => {
-    if (!chapter || !contentDraft.trim()) return
+    if (!chapter || (!contentDraft.trim() && magicTotal === 0)) return
     if (!(await askConfirm('Clear all text and images from this chapter? This cannot be undone.')))
       return
     setContentDraft('')
-    await updateChapter(workspace, chapter.number, { content: '' })
+    // Also drop the saved Magic Complete beats — the prose they produced is being cleared.
+    await updateChapter(workspace, chapter.number, {
+      content: '',
+      magic_beats: [],
+      magic_beats_done: 0
+    })
   }
 
   const onGenerateImage = async (): Promise<void> => {
@@ -258,6 +268,16 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
 
   const onMagicComplete = async (): Promise<void> => {
     if (!chapter) return
+    // Resume an interrupted run: no outline needed, beats are already planned.
+    if (magicResumable) {
+      const ok = await askConfirm(
+        `Resume Magic Complete from beat ${magicDone + 1} of ${magicTotal}? This continues the interrupted run and locks the editor until it finishes or you press Stop.`
+      )
+      if (!ok) return
+      await flushSave()
+      await startMagicComplete(workspace)
+      return
+    }
     if (!outlineDraft.trim()) {
       await showAlert(
         'Add a chapter outline first. Magic Complete breaks the outline into story beats and writes each one in turn.'
@@ -653,10 +673,14 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
               <button
                 type="button"
                 onClick={onMagicComplete}
-                title="Break this chapter's outline into story beats, then write each beat in turn (with an inline image after each)"
+                title={
+                  magicResumable
+                    ? 'Resume the interrupted Magic Complete run from where it stopped'
+                    : "Break this chapter's outline into story beats, then write each beat in turn (with an inline image after each)"
+                }
                 className="rounded-md border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 hover:bg-ink-100"
               >
-                ✨ Magic Complete
+                {magicResumable ? `▶ Resume Magic (${magicDone}/${magicTotal})` : '✨ Magic Complete'}
               </button>
               <button
                 type="button"
