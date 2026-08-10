@@ -7,6 +7,7 @@ import { askConfirm, showAlert } from '../stores/dialog'
 import { EMPTY_STORY_FILTER, filterStories, isStoryFilterActive } from '../lib/storyFilter'
 import { NewStoryDialog } from './NewStoryDialog'
 import { StoryDetailsPanel } from './StoryDetailsPanel'
+import { StoryReader } from './StoryReader'
 import { ChapterDocument } from './ChapterDocument'
 import { OutlineSuggestDialog } from './OutlineSuggestDialog'
 import { ModelSelect } from './ModelSelect'
@@ -58,7 +59,13 @@ function ElapsedTimer({ since }: { since: number }): React.JSX.Element {
   )
 }
 
-function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
+function StoryEditor({
+  workspace,
+  onEnterReader
+}: {
+  workspace: string
+  onEnterReader: () => void
+}): React.JSX.Element {
   const {
     active,
     activeChapterNumber,
@@ -419,6 +426,18 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
           </button>
           <button
             type="button"
+            onClick={async () => {
+              await flushSave()
+              onEnterReader()
+            }}
+            disabled={noChapters}
+            title="Open the distraction-free reader"
+            className="rounded-md border border-ink-200 px-3 py-1.5 text-sm hover:bg-ink-100 disabled:opacity-50"
+          >
+            📖 Read
+          </button>
+          <button
+            type="button"
             onClick={() => setDetailsOpen((v) => !v)}
             title={detailsOpen ? 'Hide story setup' : 'Show story setup'}
             className="rounded-md border border-ink-200 px-3 py-1.5 text-sm hover:bg-ink-100"
@@ -749,11 +768,19 @@ export function StoriesView(): React.JSX.Element {
   // Name/tag search + selected tag chips.
   const [filter, setFilter] = useState(EMPTY_STORY_FILTER)
   const [page, setPage] = useState(1)
+  // Reader mode for the open story (full-window, read-only). Local + ephemeral, like detailsOpen.
+  const [reading, setReading] = useState(false)
 
   useEffect(() => {
     loadList(workspace)
     loadChars(workspace)
   }, [workspace])
+
+  // Leave the reader whenever the open story changes or closes, so reopening never lands in it.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReading(false)
+  }, [active?.meta.id])
 
   const shownStories = useMemo(() => {
     const byCast = castFilter
@@ -783,6 +810,10 @@ export function StoriesView(): React.JSX.Element {
   }
 
   if (active) {
+    // Full-window reader replaces the entire editor (its own header + back button).
+    if (reading) {
+      return <StoryReader workspace={workspace} onExit={() => setReading(false)} />
+    }
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-3 border-b border-ink-200 bg-surface px-4 py-2">
@@ -849,7 +880,7 @@ export function StoriesView(): React.JSX.Element {
               </div>
             )}
           >
-            <StoryEditor workspace={workspace} />
+            <StoryEditor workspace={workspace} onEnterReader={() => setReading(true)} />
           </EditorErrorBoundary>
         </div>
       </div>
