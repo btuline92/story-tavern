@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { usePresets } from '../stores/presets'
 import { usePlugins } from '../stores/plugins'
+import { useSettings } from '../stores/settings'
 import { useStories } from '../stores/stories'
+import { askConfirm } from '../stores/dialog'
 import { CharacterPicker } from './CharacterPicker'
 import { TagsEditor } from './TagsEditor'
 
@@ -43,6 +45,179 @@ function Label({ children }: { children: React.ReactNode }): React.JSX.Element {
     <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-1">
       {children}
     </label>
+  )
+}
+
+const BTN_SECONDARY =
+  'rounded-md border border-ink-200 px-3 py-1.5 text-sm hover:bg-ink-100 disabled:opacity-50'
+const BTN_PRIMARY =
+  'rounded-md bg-accent-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-600 disabled:opacity-50'
+const BTN_DANGER =
+  'rounded-md border border-danger/40 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50'
+
+/**
+ * View / edit / delete / regenerate the story's running summary. The summarizer normally folds old
+ * chapters in automatically, but retroactively editing an already-folded chapter leaves the summary
+ * stale — so this gives a manual escape hatch to fix or rebuild it.
+ */
+function SummaryEditor({ workspace }: { workspace: string }): React.JSX.Element | null {
+  const { active, summarizing, updateMeta, regenerateSummary, cancelSummarize } = useStories()
+  const summarizer = useSettings((s) => s.settings?.summarizer)
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  if (!active) return null
+
+  const summary = active.meta.summary ?? ''
+  const through = active.meta.summary_through_chapter
+  const hasSummary = summary.trim().length > 0
+  const canRegen = !!summarizer?.enabled
+  const threshold = summarizer ? summarizer.minChapters + summarizer.batchSize : null
+
+  const startEdit = (): void => {
+    setText(summary)
+    setEditing(true)
+  }
+
+  const save = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await updateMeta(workspace, active.meta.id, { summary: text })
+      setEditing(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const del = async (): Promise<void> => {
+    const ok = await askConfirm(
+      'Delete the story summary? Earlier chapters will be sent to the model in full again until the summarizer re-runs.'
+    )
+    if (!ok) return
+    setBusy(true)
+    try {
+      await updateMeta(workspace, active.meta.id, { summary: '', summaryThroughChapter: null })
+      setEditing(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const regenerate = async (): Promise<void> => {
+    const ok = await askConfirm(
+      hasSummary
+        ? 'Regenerate the summary from scratch? This wipes the current summary and re-summarizes earlier chapters with the model.'
+        : 'Generate a summary of the earlier chapters now?'
+    )
+    if (!ok) return
+    await regenerateSummary(workspace)
+  }
+
+  return (
+    <div className="space-y-2">
+      {editing ? (
+        <>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={12}
+            className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 resize-y font-serif"
+          />
+          <div className="text-xs text-ink-700">
+            Editing changes the text only — it still covers{' '}
+            {through ? `up to chapter ${through}` : 'no chapters yet'}.
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => void save()} disabled={busy} className={BTN_PRIMARY}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              disabled={busy}
+              className={BTN_SECONDARY}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : hasSummary ? (
+        <>
+          <div className="text-xs text-ink-700">
+            {through ? `Covers up to chapter ${through}. ` : ''}
+            The model sees this in place of the earlier chapters&apos; full text.
+          </div>
+          <div className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md border border-ink-200 bg-ink-50 p-3 text-sm text-ink-900 font-serif">
+            {summary}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={startEdit}
+              disabled={summarizing || busy}
+              className={BTN_SECONDARY}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => void regenerate()}
+              disabled={summarizing || busy || !canRegen}
+              className={BTN_SECONDARY}
+            >
+              Regenerate
+            </button>
+            <button
+              type="button"
+              onClick={() => void del()}
+              disabled={summarizing || busy}
+              className={BTN_DANGER}
+            >
+              Delete
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="text-xs text-ink-700">
+            No summary yet.{' '}
+            {threshold != null
+              ? `Once there are more than ${threshold} chapters, the summarizer condenses the oldest ones so the model keeps a compact “story so far.” `
+              : ''}
+            You can also build it now.
+          </div>
+          <button
+            type="button"
+            onClick={() => void regenerate()}
+            disabled={summarizing || busy || !canRegen}
+            className={BTN_PRIMARY}
+          >
+            Generate
+          </button>
+        </>
+      )}
+
+      {!canRegen && (
+        <div className="text-xs text-ink-700">
+          Enable the summarizer in Settings to {hasSummary ? 'regenerate' : 'generate'} it.
+        </div>
+      )}
+
+      {summarizing && (
+        <div className="flex items-center gap-2 text-xs text-accent-600">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent-500" />
+          Summarizing…
+          <button
+            type="button"
+            onClick={() => void cancelSummarize()}
+            className="rounded border border-ink-200 px-2 py-0.5 text-ink-900 hover:bg-ink-100"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -277,6 +452,10 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
               className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 resize-y"
             />
           </div>
+        </Section>
+
+        <Section title="Summary" defaultOpen={false}>
+          <SummaryEditor workspace={workspace} />
         </Section>
 
         <Section title="Magic Complete" defaultOpen={false}>

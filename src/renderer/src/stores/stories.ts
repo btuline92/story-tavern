@@ -91,6 +91,8 @@ interface StoriesState {
       pluginIds?: string[]
       premise?: string
       notes?: string
+      summary?: string
+      summaryThroughChapter?: number | null
     }
   ) => Promise<void>
   remove: (workspace: string, id: string) => Promise<void>
@@ -128,6 +130,9 @@ interface StoriesState {
   maybeSummarize: (workspace: string) => Promise<boolean>
   /** Abort an in-flight summarization. */
   cancelSummarize: () => Promise<void>
+  /** Wipe the running summary and rebuild it from scratch (re-folds earlier chapters). Use after
+   *  retroactively editing chapters that were already folded in, so the summary isn't stale. */
+  regenerateSummary: (workspace: string) => Promise<void>
   /** Generate an inline image for a passage and append its marker to the chapter. */
   generateImage: (workspace: string, chapterNumber: number, passageText: string) => Promise<void>
   /** Generate an image and return the result without inserting it (for in-place replace). */
@@ -589,6 +594,27 @@ export const useStories = create<StoriesState>((set, get) => ({
   },
   cancelSummarize: async () => {
     await window.api.generation.cancelSummarize()
+  },
+  regenerateSummary: async (workspace) => {
+    const current = get().active
+    if (!current || get().summarizing) return
+    set({ summarizing: true, generationError: null })
+    try {
+      // Wipe first: the summarizer resumes from the stored summary/through, so to rebuild from the
+      // start we clear it, then let the catch-up loop re-fold everything up to the most recent N+M.
+      await window.api.stories.updateMeta(workspace, current.meta.id, {
+        summary: '',
+        summaryThroughChapter: null
+      })
+      const res = await window.api.generation.summarize(workspace, current.meta.id)
+      const reloaded = await window.api.stories.load(workspace, current.meta.id)
+      if (reloaded) set({ active: reloaded })
+      // 'aborted' = user cancelled; partial progress (if any) is already persisted. Surface others.
+      if (res && 'error' in res && res.error !== 'aborted') set({ generationError: res.error })
+      else set({ summaryDismissed: false })
+    } finally {
+      set({ summarizing: false })
+    }
   },
 
   _onStreamDelta: (streamId, delta) => {

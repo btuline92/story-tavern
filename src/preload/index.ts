@@ -390,6 +390,8 @@ const api = {
         pluginIds?: string[]
         premise?: string
         notes?: string
+        summary?: string
+        summaryThroughChapter?: number | null
       }
     ): Promise<StoryMeta> => ipcRenderer.invoke('stories:update-meta', workspace, id, patch),
     delete: (workspace: string, id: string): Promise<boolean> =>
