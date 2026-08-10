@@ -281,6 +281,7 @@ export type ApiLogKind =
   | 'image-tags'
   | 'image-generate'
   | 'summarize'
+  | 'rewrite'
 
 export interface ApiLogEntry {
   id: string

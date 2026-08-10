@@ -345,6 +345,75 @@ function buildSummarizeEntries(
   ]
 }
 
+/** Build the prompt for an AI rewrite of a highlighted passage, with full story context. */
+/**
+ * Build the rewrite prompt on top of the story's ORIGINAL writing system prompt (its persona,
+ * character sheets, premise, and style — passed in as `systemEntries`). Rewriting under a bespoke
+ * "you are an editor" system prompt made the model drop out of authoring voice and parrot the
+ * passage back verbatim; keeping the real system prompt keeps it writing in-voice.
+ *
+ * The user turn is one message split into three big, unmistakable sections — the story so far, the
+ * exact chunk to rewrite, and the author's instruction — so the model never confuses surrounding
+ * context with the text it must actually change.
+ */
+function buildRewriteEntries(args: {
+  systemEntries: PromptEntry[]
+  story: StoryWithChapters
+  chapter: Chapter
+  passage: string
+  instruction: string
+  summaryEnabled: boolean
+}): PromptEntry[] {
+  const { systemEntries, story, chapter, passage, instruction, summaryEnabled } = args
+
+  const banner = (label: string): string => {
+    const bar = '='.repeat(60)
+    return `${bar}\n${label}\n${bar}`
+  }
+
+  // Respect the summarizer: skip chapters folded into the summary, show the summary instead.
+  const through = summaryEnabled ? (story.meta.summary_through_chapter ?? 0) : 0
+  const summary = summaryEnabled ? story.meta.summary.trim() : ''
+  const priorChapters = story.chapters
+    .filter((c) => c.number < chapter.number && c.number > through)
+    .sort((a, b) => a.number - b.number)
+    .map((c) => `## ${c.title || `Chapter ${c.number}`}\n\n${stripImageMarkers(c.content).trim()}`)
+    .filter((b) => b.trim().length > 0)
+    .join('\n\n')
+
+  // Lead-in / continuation around the passage within the active chapter.
+  const content = chapter.content
+  const idx = content.indexOf(passage)
+  const leadIn = stripImageMarkers(idx >= 0 ? content.slice(0, idx) : content).trim()
+  const after = stripImageMarkers(idx >= 0 ? content.slice(idx + passage.length) : '').trim()
+
+  // Section 1 — the narrative leading up to (and just past) the passage, with a clear placeholder
+  // marking exactly where the passage sits in the flow.
+  const soFar: string[] = []
+  if (summary) soFar.push(`Summary of earlier chapters:\n${summary}`)
+  if (priorChapters) soFar.push(priorChapters)
+  const cur: string[] = [`## Current chapter — ${chapter.title || `Chapter ${chapter.number}`}`]
+  if (leadIn) cur.push(leadIn)
+  cur.push('>>>> [ the passage to rewrite is here — its current text is shown below ] <<<<')
+  if (after) cur.push(after)
+  soFar.push(cur.join('\n\n'))
+
+  const userContent = [
+    banner('STORY SO FAR'),
+    soFar.join('\n\n'),
+    banner('PASSAGE TO REWRITE'),
+    passage.trim(),
+    banner('REWRITE INSTRUCTIONS'),
+    instruction.trim(),
+    'Rewrite ONLY the passage shown under "PASSAGE TO REWRITE", applying the instruction above. Keep ' +
+      'continuity with the story so far and match its voice, tense, and point of view. NSFW is allowed ' +
+      'where the story calls for it. Output ONLY the rewritten passage — no preamble, no surrounding ' +
+      'quotation marks, no commentary, no markdown fences.'
+  ].join('\n\n')
+
+  return [...systemEntries, { role: 'user', content: userContent }]
+}
+
 export function registerGenerationIpc(): void {
   ipcMain.handle(
     'generation:continue-stream',
@@ -815,6 +884,106 @@ export function registerGenerationIpc(): void {
       if (hardError) return { error: `Summarization failed: ${hardError}` }
       if (ctrl.signal.aborted) return { error: 'aborted' }
       return { summary: runningSummary, summary_through_chapter: through }
+    }
+  )
+
+  // Rewrite a highlighted passage per an instruction, with full story context. One collect call.
+  ipcMain.handle(
+    'generation:rewrite',
+    async (
+      _event,
+      workspace: string,
+      storyId: string,
+      chapterNumber: number,
+      passage: string,
+      instruction: string
+    ): Promise<{ text: string } | { error: string }> => {
+      if (!passage || !passage.trim()) return { error: 'No passage selected.' }
+      if (!instruction || !instruction.trim())
+        return { error: 'Enter an instruction for the rewrite.' }
+
+      const settings = await readWorkspaceSettings(workspace)
+      const { provider, model, generation } = resolveActiveModel(settings)
+      const apiKey = await getKey(provider)
+      if (!apiKey) return { error: `No API key saved for ${provider}` }
+
+      const story = await loadStory(workspace, storyId)
+      if (!story) return { error: `Story not found: ${storyId}` }
+      const chapter = story.chapters.find((c) => c.number === chapterNumber)
+      if (!chapter) return { error: `Chapter ${chapterNumber} not found` }
+      const characters = await readCharactersData(workspace, story.meta.character_ids)
+
+      // Reuse the story's real writing system prompt (same preset assembly as normal generation), so
+      // the rewrite runs in-voice. We keep only the SYSTEM entries — persona, character sheets,
+      // premise, style, plugins — and supply our own user turn with the passage + instruction.
+      const presetId = story.meta.preset_id ?? settings.activePresetId
+      const preset = (presetId ? await getPreset(workspace, presetId) : null) ?? defaultPreset()
+      const activePlugins = await getPluginsByIds(workspace, story.meta.plugin_ids)
+      const assembled = assemble(preset, {
+        characters,
+        storyTitle: story.meta.title,
+        storyPremise: story.meta.premise ?? '',
+        chapters: story.chapters.map((c) => ({
+          number: c.number,
+          title: c.title,
+          outline: c.outline,
+          content: c.content
+        })),
+        activeChapterNumber: chapterNumber,
+        plugins: activePlugins.map((p) => p.content),
+        storySummary: settings.summarizer.enabled ? story.meta.summary : '',
+        summarizedThroughChapter: settings.summarizer.enabled
+          ? (story.meta.summary_through_chapter ?? 0)
+          : 0
+      })
+      const systemEntries = assembled.filter((e) => e.role === 'system')
+
+      const entries = buildRewriteEntries({
+        systemEntries,
+        story,
+        chapter,
+        passage,
+        instruction,
+        summaryEnabled: settings.summarizer.enabled
+      })
+
+      const ctrl = new AbortController()
+      let callError: string | null = null
+      const metrics = await streamContinue(
+        { provider, model, apiKey, generation, entries, openrouter: settings.openrouter },
+        ctrl.signal,
+        {
+          onDelta: () => {},
+          onReasoning: () => {},
+          onDone: () => {},
+          onError: (e) => {
+            callError = e
+          }
+        }
+      )
+      await logApiCall(workspace, {
+        provider,
+        model,
+        kind: 'rewrite',
+        url: metrics.url,
+        request_body: metrics.requestBody,
+        status: metrics.status,
+        response_body: JSON.stringify(
+          { text: metrics.fullText, reasoning: metrics.reasoningText },
+          null,
+          2
+        ),
+        error: metrics.error,
+        duration_ms: metrics.durationMs,
+        story_id: storyId,
+        chapter_number: chapterNumber
+      })
+      if (callError || metrics.error) {
+        return { error: `Rewrite failed: ${callError ?? metrics.error}` }
+      }
+      const text = metrics.fullText.trim()
+      if (!text) return { error: 'The model returned an empty rewrite.' }
+      return { text }
     }
   )
 

@@ -255,6 +255,7 @@ export type ApiLogKind =
   | 'image-tags'
   | 'image-generate'
   | 'summarize'
+  | 'rewrite'
 
 export interface ApiLogEntry {
   id: string
@@ -465,6 +466,21 @@ const api = {
       prompt: string
     ): Promise<{ character: GeneratedCharacter } | { error: string }> =>
       ipcRenderer.invoke('generation:create-character', workspace, prompt),
+    rewrite: (
+      workspace: string,
+      storyId: string,
+      chapterNumber: number,
+      passage: string,
+      instruction: string
+    ): Promise<{ text: string } | { error: string }> =>
+      ipcRenderer.invoke(
+        'generation:rewrite',
+        workspace,
+        storyId,
+        chapterNumber,
+        passage,
+        instruction
+      ),
     summarize: (
       workspace: string,
       storyId: string

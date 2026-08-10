@@ -189,6 +189,7 @@ export function LogsView(): React.JSX.Element {
           <option value="image-tags">image-tags</option>
           <option value="image-generate">image-generate</option>
           <option value="summarize">summarize</option>
+          <option value="rewrite">rewrite</option>
         </select>
         <label className="flex items-center gap-1 text-sm text-ink-900">
           <input

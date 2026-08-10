@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ImageGenResult } from '../types'
+import { RewriteDialog } from './RewriteDialog'
 
 type Segment =
   | { kind: 'text'; id: string; text: string }
@@ -35,12 +36,15 @@ function AutoTextarea({
   value,
   disabled,
   placeholder,
-  onChange
+  onChange,
+  onSelect
 }: {
   value: string
   disabled: boolean
   placeholder?: string
   onChange: (v: string) => void
+  /** Fires with the current selection range + a screen anchor (mouse point, else the textarea). */
+  onSelect?: (start: number, end: number, x: number, y: number) => void
 }): React.JSX.Element {
   const ref = useRef<HTMLTextAreaElement | null>(null)
   useLayoutEffect(() => {
@@ -57,6 +61,17 @@ function AutoTextarea({
       disabled={disabled}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
+      onMouseUp={(e) => {
+        const el = e.currentTarget
+        onSelect?.(el.selectionStart, el.selectionEnd, e.clientX, e.clientY)
+      }}
+      onKeyUp={(e) => {
+        const el = e.currentTarget
+        if (el.selectionStart !== el.selectionEnd) {
+          const r = el.getBoundingClientRect()
+          onSelect?.(el.selectionStart, el.selectionEnd, r.left + 48, r.top + 24)
+        }
+      }}
       rows={1}
       className="w-full resize-none overflow-hidden bg-transparent text-base leading-relaxed font-serif focus:outline-none disabled:text-ink-700"
     />
@@ -68,9 +83,16 @@ interface Props {
   storySlug: string
   value: string
   disabled: boolean
+  /** Whether image generation is enabled (gates the selection "Image" action). */
+  imageEnabled: boolean
   onChange: (next: string) => void
   /** Generate a fresh image for the given passage; returns the result (no insertion). */
   onRegenerateImage: (passageText: string) => Promise<ImageGenResult | null>
+  /** AI-rewrite a highlighted passage per an instruction (returns text, no insertion). */
+  onRewrite: (
+    passage: string,
+    instruction: string
+  ) => Promise<{ text: string } | { error: string }>
 }
 
 export function ChapterDocument({
@@ -78,8 +100,10 @@ export function ChapterDocument({
   storySlug,
   value,
   disabled,
+  imageEnabled,
   onChange,
-  onRegenerateImage
+  onRegenerateImage,
+  onRewrite
 }: Props): React.JSX.Element {
   const [segments, setSegments] = useState<Segment[]>(() => parse(value))
   const [imgData, setImgData] = useState<Record<string, string>>({})
@@ -91,6 +115,24 @@ export function ChapterDocument({
   // auto-inserted image, chapter switch) — which we must re-parse — apart from the echo
   // of our own keystrokes, which we must NOT re-parse (it would reset focus/caret).
   const lastEmitted = useRef(value)
+  // Highlight-to-act: the active selection (drives the floating toolbar), and the passage captured
+  // for the rewrite dialog (survives the selection clearing when the dialog opens).
+  const [selection, setSelection] = useState<{
+    segId: string
+    start: number
+    end: number
+    text: string
+    x: number
+    y: number
+  } | null>(null)
+  const [rewriteTarget, setRewriteTarget] = useState<{
+    segId: string
+    start: number
+    end: number
+    text: string
+  } | null>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
+  const insertCounter = useRef(0)
 
   useEffect(() => {
     if (value !== lastEmitted.current) {
@@ -98,6 +140,27 @@ export function ChapterDocument({
       setSegments(parse(value))
     }
   }, [value])
+
+  // Dismiss the selection toolbar on outside click / scroll / Escape.
+  useEffect(() => {
+    if (!selection) return
+    const onDown = (e: MouseEvent): void => {
+      if (toolbarRef.current?.contains(e.target as Node)) return
+      setSelection(null)
+    }
+    const onScroll = (): void => setSelection(null)
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setSelection(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('scroll', onScroll, true)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('scroll', onScroll, true)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [selection])
 
   // Load image data URLs for any image segments we haven't fetched yet.
   useEffect(() => {
@@ -125,6 +188,7 @@ export function ChapterDocument({
   }
 
   const updateText = (id: string, text: string): void => {
+    setSelection(null) // typing dismisses the selection toolbar
     commit(segments.map((s) => (s.kind === 'text' && s.id === id ? { ...s, text } : s)))
   }
 
@@ -184,6 +248,85 @@ export function ChapterDocument({
       .catch(() => {})
   }
 
+  // --- Highlight-to-act ---
+  const handleSelect = (segId: string, start: number, end: number, x: number, y: number): void => {
+    if (disabled || start === end) {
+      setSelection(null)
+      return
+    }
+    const seg = segments.find((s) => s.id === segId)
+    if (!seg || seg.kind !== 'text' || !seg.text.slice(start, end).trim()) {
+      setSelection(null)
+      return
+    }
+    setSelection({ segId, start, end, text: seg.text.slice(start, end), x, y })
+  }
+
+  /** Locate the captured passage in its segment — by offsets, else by search (handles minor drift). */
+  const locate = (
+    segId: string,
+    start: number,
+    end: number,
+    text: string
+  ): { seg: Extract<Segment, { kind: 'text' }>; index: number; s: number; e: number } | null => {
+    const index = segments.findIndex((x) => x.id === segId)
+    const seg = segments[index]
+    if (!seg || seg.kind !== 'text') return null
+    let s = start
+    let e = end
+    if (seg.text.slice(s, e) !== text) {
+      const idx = seg.text.indexOf(text)
+      if (idx < 0) return null
+      s = idx
+      e = idx + text.length
+    }
+    return { seg, index, s, e }
+  }
+
+  const openRewrite = (): void => {
+    if (!selection) return
+    const { segId, start, end, text } = selection
+    setRewriteTarget({ segId, start, end, text })
+    setSelection(null)
+  }
+
+  const applyRewrite = (newText: string): void => {
+    const t = rewriteTarget
+    if (!t) return
+    const loc = locate(t.segId, t.start, t.end, t.text)
+    if (!loc) return
+    const nextText = loc.seg.text.slice(0, loc.s) + newText + loc.seg.text.slice(loc.e)
+    commit(segments.map((x) => (x.id === loc.seg.id ? { ...x, text: nextText } : x)))
+  }
+
+  const imageFromSelection = async (): Promise<void> => {
+    const sel = selection
+    if (!sel) return
+    setSelection(null)
+    const loc = locate(sel.segId, sel.start, sel.end, sel.text)
+    if (!loc) return
+    const result = await onRegenerateImage(sel.text.trim())
+    if (!result) return
+    const cur = loc.seg.text
+    // Split the text segment at the selection end and insert an image between the halves.
+    const before = cur.slice(0, loc.e).replace(/\s+$/, '') + '\n\n'
+    const after = '\n\n' + cur.slice(loc.e).replace(/^\s+/, '')
+    const imgSeg: Segment = {
+      kind: 'image',
+      id: `ins${insertCounter.current++}`,
+      alt: 'scene',
+      src: result.relPath,
+      title: result.positive
+    }
+    commit([
+      ...segments.slice(0, loc.index),
+      { kind: 'text', id: loc.seg.id, text: before },
+      imgSeg,
+      { kind: 'text', id: `${loc.seg.id}b${insertCounter.current++}`, text: after },
+      ...segments.slice(loc.index + 1)
+    ])
+  }
+
   return (
     <div className="absolute inset-0 overflow-y-auto p-8">
       <div className="mx-auto max-w-3xl">
@@ -199,6 +342,7 @@ export function ChapterDocument({
                   : undefined
               }
               onChange={(v) => updateText(seg.id, v)}
+              onSelect={(start, end, x, y) => handleSelect(seg.id, start, end, x, y)}
             />
           ) : (
             <figure key={seg.id} className="group relative my-4 flex flex-col items-center">
@@ -253,6 +397,39 @@ export function ChapterDocument({
           )
         )}
       </div>
+
+      {selection && !disabled && (
+        <div
+          ref={toolbarRef}
+          className="fixed z-40 flex gap-1 rounded-md border border-ink-200 bg-surface p-1 shadow-lg"
+          style={{ left: Math.min(selection.x, window.innerWidth - 190), top: selection.y + 10 }}
+        >
+          <button
+            type="button"
+            onClick={openRewrite}
+            className="rounded px-2 py-1 text-xs font-medium text-ink-900 hover:bg-ink-100"
+          >
+            ✨ Rewrite
+          </button>
+          {imageEnabled && (
+            <button
+              type="button"
+              onClick={() => void imageFromSelection()}
+              className="rounded px-2 py-1 text-xs font-medium text-ink-900 hover:bg-ink-100"
+            >
+              🖼 Image
+            </button>
+          )}
+        </div>
+      )}
+
+      <RewriteDialog
+        open={rewriteTarget != null}
+        passage={rewriteTarget?.text ?? ''}
+        onGenerate={(passage, instruction) => onRewrite(passage, instruction)}
+        onAccept={applyRewrite}
+        onClose={() => setRewriteTarget(null)}
+      />
 
       {lightbox && (
         <div

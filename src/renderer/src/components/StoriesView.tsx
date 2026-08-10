@@ -514,12 +514,25 @@ function StoryEditor({ workspace }: { workspace: string }): React.JSX.Element {
                 storySlug={active.meta.slug}
                 value={contentDraft}
                 disabled={busy}
+                imageEnabled={imageEnabled}
                 onChange={setContentDraft}
                 onRegenerateImage={(passageText) =>
                   chapter
                     ? regenerateImage(workspace, chapter.number, passageText)
                     : Promise.resolve(null)
                 }
+                onRewrite={async (passage, instruction) => {
+                  if (!chapter) return { error: 'No active chapter.' }
+                  // Persist the draft so the rewrite IPC reads current content when locating the passage.
+                  await flushSave()
+                  return window.api.generation.rewrite(
+                    workspace,
+                    active.meta.id,
+                    chapter.number,
+                    passage,
+                    instruction
+                  )
+                }}
               />
               {generating && (
                 <div
