@@ -768,19 +768,18 @@ export function StoriesView(): React.JSX.Element {
   // Name/tag search + selected tag chips.
   const [filter, setFilter] = useState(EMPTY_STORY_FILTER)
   const [page, setPage] = useState(1)
-  // Reader mode for the open story (full-window, read-only). Local + ephemeral, like detailsOpen.
-  const [reading, setReading] = useState(false)
+  // Reader mode (full-window, read-only) is keyed to a story id rather than a bare boolean: the reader
+  // shows only while this matches the OPEN story. That makes "open story X straight into the reader"
+  // (from the list) race-free — no reset effect fighting the open — and reopening any other story never
+  // lands in the reader. Local + ephemeral, like detailsOpen.
+  const [readingStoryId, setReadingStoryId] = useState<string | null>(null)
+  // Where the reader was opened from, so its back button returns to that screen (list vs editor).
+  const [readerFromList, setReaderFromList] = useState(false)
 
   useEffect(() => {
     loadList(workspace)
     loadChars(workspace)
   }, [workspace])
-
-  // Leave the reader whenever the open story changes or closes, so reopening never lands in it.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setReading(false)
-  }, [active?.meta.id])
 
   const shownStories = useMemo(() => {
     const byCast = castFilter
@@ -811,8 +810,19 @@ export function StoriesView(): React.JSX.Element {
 
   if (active) {
     // Full-window reader replaces the entire editor (its own header + back button).
-    if (reading) {
-      return <StoryReader workspace={workspace} onExit={() => setReading(false)} />
+    if (readingStoryId === active.meta.id) {
+      return (
+        <StoryReader
+          workspace={workspace}
+          backLabel={readerFromList ? '← Stories' : '← Editor'}
+          onExit={() => {
+            setReadingStoryId(null)
+            // Return to whichever screen opened the reader: the list closes the story; the editor
+            // just drops reader mode and stays on the open story.
+            if (readerFromList) closeActive()
+          }}
+        />
+      )
     }
     return (
       <div className="flex h-full flex-col">
@@ -880,7 +890,13 @@ export function StoriesView(): React.JSX.Element {
               </div>
             )}
           >
-            <StoryEditor workspace={workspace} onEnterReader={() => setReading(true)} />
+            <StoryEditor
+              workspace={workspace}
+              onEnterReader={() => {
+                setReaderFromList(false)
+                setReadingStoryId(active.meta.id)
+              }}
+            />
           </EditorErrorBoundary>
         </div>
       </div>
@@ -1005,6 +1021,22 @@ export function StoriesView(): React.JSX.Element {
                       >
                         ×
                       </button>
+                      {chapters > 0 && (
+                        <button
+                          type="button"
+                          title="Read this story"
+                          onClick={async () => {
+                            // Open loads the story (chapters + active chapter); then drop straight into
+                            // the reader for it. Keyed state means no race with the open.
+                            setReaderFromList(true)
+                            await open(workspace, s.id)
+                            setReadingStoryId(s.id)
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-accent-500 px-3 py-1.5 text-xs font-medium text-white shadow opacity-0 transition hover:bg-accent-600 group-hover:opacity-100 focus:opacity-100"
+                        >
+                          📖 Read
+                        </button>
+                      )}
                     </li>
                   )
                 })}

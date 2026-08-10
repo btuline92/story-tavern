@@ -24,6 +24,8 @@ function paragraphsOf(text: string): string[] {
 
 interface Props {
   workspace: string
+  /** Label for the back button — reflects where the reader was opened from (editor vs list). */
+  backLabel: string
   onExit: () => void
 }
 
@@ -32,7 +34,7 @@ interface Props {
  * Shows one chapter at a time (chapter menu + Prev/Next via the store's selectChapter), reusing the
  * shared parser and the same image loader/lightbox as the editor. All prefs here are local/ephemeral.
  */
-export function StoryReader({ workspace, onExit }: Props): React.JSX.Element | null {
+export function StoryReader({ workspace, backLabel, onExit }: Props): React.JSX.Element | null {
   const { active, activeChapterNumber, selectChapter } = useStories()
   const [imgData, setImgData] = useState<Record<string, string>>({})
   const [lightbox, setLightbox] = useState<{ src: string; title: string } | null>(null)
@@ -123,7 +125,7 @@ export function StoryReader({ workspace, onExit }: Props): React.JSX.Element | n
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-ink-200 bg-surface px-4 py-2">
         <button type="button" onClick={onExit} className={BTN}>
-          ← Editor
+          {backLabel}
         </button>
         <div className="min-w-0 flex-1 truncate text-sm text-ink-700">
           {active.meta.title || 'Untitled'}
