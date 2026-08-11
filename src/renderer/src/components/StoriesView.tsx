@@ -274,18 +274,21 @@ function StoryEditor({
     await generateImage(workspace, chapter.number, proseTail())
   }
 
-  const onMagicComplete = async (): Promise<void> => {
+  // Resume an interrupted run from where it stopped — beats are already planned, prose is kept.
+  const onResumeMagic = async (): Promise<void> => {
     if (!chapter) return
-    // Resume an interrupted run: no outline needed, beats are already planned.
-    if (magicResumable) {
-      const ok = await askConfirm(
-        `Resume Magic Complete from beat ${magicDone + 1} of ${magicTotal}? This continues the interrupted run and locks the editor until it finishes or you press Stop.`
-      )
-      if (!ok) return
-      await flushSave()
-      await startMagicComplete(workspace)
-      return
-    }
+    const ok = await askConfirm(
+      `Resume Magic Complete from beat ${magicDone + 1} of ${magicTotal}? This continues the interrupted run and locks the editor until it finishes or you press Stop.`
+    )
+    if (!ok) return
+    await flushSave()
+    await startMagicComplete(workspace)
+  }
+
+  // Run Magic Complete from scratch. If the chapter already has prose/beats (a finished or interrupted
+  // run, or hand-written text), clear it first so the fresh plan doesn't append onto the old passages.
+  const onStartOver = async (): Promise<void> => {
+    if (!chapter) return
     if (!outlineDraft.trim()) {
       await showAlert(
         'Add a chapter outline first. Magic Complete breaks the outline into story beats and writes each one in turn.'
@@ -295,11 +298,24 @@ function StoryEditor({
     const note = imageEnabled
       ? 'It breaks this chapter’s outline into story beats, then writes each beat as its own passage with an inline image after it.'
       : 'It breaks this chapter’s outline into story beats, then writes each beat as its own passage. Image generation is off, so no images will be added.'
+    const hasContent = contentDraft.trim().length > 0 || magicTotal > 0
     const ok = await askConfirm(
-      `Magic Complete this chapter?\n\n${note}\n\nThis can take a while and locks the editor until it finishes or you press Stop.`
+      hasContent
+        ? `Start Magic Complete over?\n\nThis clears this chapter's current text and images, re-plans the outline into new beats, and writes the whole chapter again. This cannot be undone.`
+        : `Magic Complete this chapter?\n\n${note}\n\nThis can take a while and locks the editor until it finishes or you press Stop.`
     )
     if (!ok) return
     await flushSave()
+    if (hasContent) {
+      // Wipe prose + old beats so startMagicComplete plans fresh (empty beats ⇒ no resume) and writes
+      // into a clean chapter rather than appending after the previous run's passages.
+      setContentDraft('')
+      await updateChapter(workspace, chapter.number, {
+        content: '',
+        magic_beats: [],
+        magic_beats_done: 0
+      })
+    }
     await startMagicComplete(workspace)
   }
 
@@ -703,17 +719,27 @@ function StoryEditor({
                   🖼 Image
                 </button>
               )}
+              {magicResumable && (
+                <button
+                  type="button"
+                  onClick={onResumeMagic}
+                  title="Resume the interrupted Magic Complete run from where it stopped"
+                  className="rounded-md border border-accent-500 px-4 py-2 text-sm font-medium text-accent-600 hover:bg-accent-500/10"
+                >
+                  ▶ Resume Magic ({magicDone}/{magicTotal})
+                </button>
+              )}
               <button
                 type="button"
-                onClick={onMagicComplete}
+                onClick={onStartOver}
                 title={
                   magicResumable
-                    ? 'Resume the interrupted Magic Complete run from where it stopped'
+                    ? 'Start over: clear this chapter, re-plan the outline into new beats, and write it again'
                     : "Break this chapter's outline into story beats, then write each beat in turn (with an inline image after each)"
                 }
                 className="rounded-md border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 hover:bg-ink-100"
               >
-                {magicResumable ? `▶ Resume Magic (${magicDone}/${magicTotal})` : '✨ Magic Complete'}
+                ✨ Magic Complete
               </button>
               <button
                 type="button"

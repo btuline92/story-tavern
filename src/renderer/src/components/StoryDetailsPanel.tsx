@@ -222,7 +222,8 @@ function SummaryEditor({ workspace }: { workspace: string }): React.JSX.Element 
 }
 
 export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | null {
-  const { active, activeChapterNumber, magicActive, magicBeatIndex, updateMeta } = useStories()
+  const { active, activeChapterNumber, magicActive, magicBeatIndex, updateMeta, updateChapter } =
+    useStories()
   const { characters, load: loadChars } = useCharacters()
   const { presets, load: loadPresets } = usePresets()
   const { plugins, load: loadPlugins } = usePlugins()
@@ -232,12 +233,21 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Tracks which story id we've initialized drafts for. Only changes drive a re-init.
   const initializedFor = useRef<string | null>(null)
+  // Inline beat editing in the Magic Complete tile view (index into the active chapter's beats).
+  const [editingBeat, setEditingBeat] = useState<number | null>(null)
+  const [beatDraft, setBeatDraft] = useState('')
 
   useEffect(() => {
     loadChars(workspace)
     loadPresets(workspace)
     loadPlugins(workspace)
   }, [workspace])
+
+  // Drop any in-progress beat edit when the active chapter changes (the index would point elsewhere).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditingBeat(null)
+  }, [activeChapterNumber])
 
   // Initialize drafts ONLY when the active story id changes (or active goes null).
   // After init, drafts are entirely user-owned — we never sync from active.meta again.
@@ -325,6 +335,36 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
   const beatsDone = activeChapter?.magic_beats_done ?? 0
   // The beat currently being written during a live run (1-based); else the completed count.
   const currentBeat = magicActive ? magicBeatIndex : beatsDone
+
+  // Partial reset: mark this beat (and everything after) as not-yet-written so Resume rewrites from
+  // here. Deliberately leaves the prose alone — which text came from which beat isn't tracked, so
+  // removing the now-stale passages is left to the user.
+  const resetToBeat = async (i: number): Promise<void> => {
+    if (!activeChapter || magicActive) return
+    const ok = await askConfirm(
+      `Set Magic Complete back to beat ${i + 1}? Resume will rewrite from beat ${i + 1} onward.\n\n` +
+        `The passages already written for beats ${i + 1}–${beatsDone} stay in the chapter — delete ` +
+        `those yourself first if you don't want duplicates.`
+    )
+    if (!ok) return
+    await updateChapter(workspace, activeChapter.number, { magic_beats_done: i })
+  }
+
+  const startEditBeat = (i: number): void => {
+    setEditingBeat(i)
+    setBeatDraft(beats[i])
+  }
+
+  const saveBeat = async (): Promise<void> => {
+    if (editingBeat == null || !activeChapter) return
+    const idx = editingBeat
+    const text = beatDraft.trim()
+    setEditingBeat(null)
+    if (!text || text === beats[idx]) return
+    const next = [...beats]
+    next[idx] = text
+    await updateChapter(workspace, activeChapter.number, { magic_beats: next })
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -458,7 +498,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
           <SummaryEditor workspace={workspace} />
         </Section>
 
-        <Section title="Magic Complete" defaultOpen={false}>
+        <Section title="Magic Complete" defaultOpen={beats.length > 0}>
           {beats.length === 0 ? (
             <div className="text-xs text-ink-700">
               No beats yet. Run Magic Complete on a chapter to plan and write its beats; they&apos;ll
@@ -470,14 +510,21 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
                 Beat {Math.min(currentBeat, beats.length)} / {beats.length}
                 {magicActive ? ' · writing…' : beatsDone >= beats.length ? ' · done' : ' · paused'}
               </div>
+              {!magicActive && (
+                <div className="text-xs text-ink-700">
+                  Edit a beat with ✎, or press ↺ on a written beat to set the run back to it (Resume
+                  then rewrites from there; the old prose stays — remove it yourself).
+                </div>
+              )}
               <ol className="space-y-1">
                 {beats.map((beat, i) => {
                   const done = i < beatsDone
                   const writing = magicActive && i === magicBeatIndex - 1
+                  const editing = editingBeat === i
                   return (
                     <li
                       key={i}
-                      className={`flex gap-2 rounded-md border px-2 py-1.5 text-xs ${
+                      className={`flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs ${
                         writing
                           ? 'border-accent-500 bg-accent-500/10 text-ink-900'
                           : done
@@ -485,10 +532,61 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
                             : 'border-dashed border-ink-200 text-ink-700'
                       }`}
                     >
-                      <span className="shrink-0 tabular-nums">
-                        {writing ? '▶' : done ? '✓' : `${i + 1}.`}
-                      </span>
-                      <span className="min-w-0 flex-1">{beat}</span>
+                      {editing ? (
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <textarea
+                            value={beatDraft}
+                            onChange={(e) => setBeatDraft(e.target.value)}
+                            rows={3}
+                            className="w-full resize-y rounded border border-ink-200 px-2 py-1 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => void saveBeat()}
+                              className="rounded bg-accent-500 px-2 py-0.5 text-xs font-medium text-white hover:bg-accent-600"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingBeat(null)}
+                              className="rounded border border-ink-200 px-2 py-0.5 text-xs hover:bg-ink-100"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="shrink-0 tabular-nums">
+                            {writing ? '▶' : done ? '✓' : `${i + 1}.`}
+                          </span>
+                          <span className="min-w-0 flex-1">{beat}</span>
+                          {!magicActive && (
+                            <span className="shrink-0 flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => startEditBeat(i)}
+                                title="Edit this beat"
+                                className="rounded px-1 leading-none text-ink-700 hover:bg-ink-100"
+                              >
+                                ✎
+                              </button>
+                              {done && (
+                                <button
+                                  type="button"
+                                  onClick={() => void resetToBeat(i)}
+                                  title={`Set the run back to beat ${i + 1} (Resume rewrites from here)`}
+                                  className="rounded px-1 leading-none text-ink-700 hover:bg-ink-100"
+                                >
+                                  ↺
+                                </button>
+                              )}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </li>
                   )
                 })}
