@@ -153,7 +153,7 @@ function App(): React.JSX.Element {
             <CharacterList />
           </aside>
           <main className="row-start-2 col-start-2 overflow-hidden">
-            <CharacterDetail />
+            <CharacterDetail onGoToGallery={() => setView('gallery')} />
           </main>
         </>
       ) : view === 'presets' ? (

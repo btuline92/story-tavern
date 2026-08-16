@@ -141,6 +141,9 @@ export interface WorkspaceSettings {
   image: ImageSettings
   summarizer: SummarizerSettings
   openrouter: OpenRouterSettings
+  /** When on, Magic Complete writes all beats straight through after planning them. When off, it
+   *  plans the beats and stops at 0/N so the user can review/edit/reorder before pressing Resume. */
+  magicAutoStart: boolean
   /** Named model configs; `activeModelPresetId` selects the one used for generation. */
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
@@ -497,6 +500,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   image: { ...DEFAULT_IMAGE },
   summarizer: { ...DEFAULT_SUMMARIZER },
   openrouter: { ...DEFAULT_OPENROUTER },
+  magicAutoStart: true,
   modelPresets: [{ ...DEFAULT_MODEL_PRESET, generation: { ...DEFAULT_GENERATION } }],
   activeModelPresetId: 'default'
 }
@@ -581,6 +585,8 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
     image: mergeImage(r.image),
     summarizer: mergeSummarizer(r.summarizer),
     openrouter: mergeOpenRouter(r.openrouter),
+    // Default on for existing workspaces (older settings have no such field).
+    magicAutoStart: typeof r.magicAutoStart === 'boolean' ? r.magicAutoStart : true,
     modelPresets,
     activeModelPresetId
   }

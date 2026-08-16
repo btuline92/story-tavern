@@ -127,7 +127,7 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
 export function Settings(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
   const switchWorkspace = useWorkspace((s) => s.switchWorkspace)
-  const { settings, load, loaded } = useSettings()
+  const { settings, load, loaded, setMagicAutoStart } = useSettings()
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {
@@ -166,6 +166,25 @@ export function Settings(): React.JSX.Element {
         >
           Switch workspace…
         </button>
+      </div>
+
+      <div className="st-card p-4 mb-6">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={settings.magicAutoStart}
+            onChange={(e) => setMagicAutoStart(workspace, e.target.checked)}
+            className="mt-1 h-4 w-4 shrink-0 accent-accent-500"
+          />
+          <div>
+            <div className="font-medium text-ink-900">Auto-start Magic Complete</div>
+            <div className="text-sm text-ink-700 mt-1">
+              On: Magic Complete plans the chapter&apos;s beats and writes them straight through. Off:
+              it plans the beats and stops at 0/N so you can review, edit, and reorder them first — then
+              press Resume to write.
+            </div>
+          </div>
+        </label>
       </div>
 
       <ModelPresetsPanel />

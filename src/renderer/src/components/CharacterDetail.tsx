@@ -171,7 +171,12 @@ function GreetingsEditor({
   )
 }
 
-export function CharacterDetail(): React.JSX.Element {
+export function CharacterDetail({
+  onGoToGallery
+}: {
+  /** Navigate to the Gallery (to pick an avatar for this character). */
+  onGoToGallery: () => void
+}): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
   const { characters, selectedId, update, pickAvatar, exportCard, remove } = useCharacters()
   const character = characters.find((c) => c.id === selectedId) ?? null
@@ -364,13 +369,23 @@ export function CharacterDetail(): React.JSX.Element {
                 />
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onReplaceAvatar}
-              className="text-xs text-accent-500 hover:text-accent-600"
-            >
-              {character.avatar ? 'Replace avatar…' : 'Set avatar…'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onReplaceAvatar}
+                className="text-xs text-accent-500 hover:text-accent-600"
+              >
+                {character.avatar ? 'Replace avatar…' : 'Set avatar…'}
+              </button>
+              <button
+                type="button"
+                onClick={onGoToGallery}
+                title="Pick an avatar from this character's gallery"
+                className="text-xs text-accent-500 hover:text-accent-600"
+              >
+                Go to gallery…
+              </button>
+            </div>
           </div>
         </div>
 

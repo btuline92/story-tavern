@@ -173,6 +173,7 @@ export interface WorkspaceSettings {
   image: ImageSettings
   summarizer: SummarizerSettings
   openrouter: OpenRouterSettings
+  magicAutoStart: boolean
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
 }
@@ -222,6 +223,11 @@ export interface StoryGalleryImage {
   relPath: string
   prompt: string
 }
+
+/** Identifies a gallery image to copy into a character's avatar. */
+export type GalleryAvatarSource =
+  | { kind: 'dedicated'; file: string }
+  | { kind: 'story'; storySlug: string; relPath: string }
 
 export interface StoryMeta {
   id: string

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Character, GeneratedCharacter, TavernV2Data } from '../types'
+import type { Character, GalleryAvatarSource, GeneratedCharacter, TavernV2Data } from '../types'
 
 export interface CharacterUpdate {
   name?: string
@@ -18,6 +18,12 @@ interface CharactersState {
   createFromAI: (workspace: string, fields: GeneratedCharacter) => Promise<Character>
   update: (workspace: string, id: string, patch: CharacterUpdate) => Promise<Character>
   pickAvatar: (workspace: string, id: string) => Promise<Character | null>
+  /** Set a character's avatar from a gallery/story image (no file dialog). */
+  setAvatarFromGallery: (
+    workspace: string,
+    id: string,
+    source: GalleryAvatarSource
+  ) => Promise<Character | null>
   exportCard: (workspace: string, id: string, name: string) => Promise<string | null>
   select: (id: string | null) => void
   remove: (workspace: string, id: string) => Promise<void>
@@ -78,6 +84,17 @@ export const useCharacters = create<CharactersState>((set, get) => ({
   },
   pickAvatar: async (workspace, id) => {
     const result = (await window.api.characters.pickAvatar(workspace, id)) as Character | null
+    if (!result) return null
+    const list = (await window.api.characters.list(workspace)) as Character[]
+    set({ characters: list })
+    return result
+  },
+  setAvatarFromGallery: async (workspace, id, source) => {
+    const result = (await window.api.characters.setAvatarFromGallery(
+      workspace,
+      id,
+      source
+    )) as Character | null
     if (!result) return null
     const list = (await window.api.characters.list(workspace)) as Character[]
     set({ characters: list })

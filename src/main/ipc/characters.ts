@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { showOpenDialog, showSaveDialog } from '../lib/dialogs'
-import { join } from 'node:path'
+import { extname, join } from 'node:path'
 import {
   createCharacter,
   CharacterUpdate,
@@ -10,8 +10,22 @@ import {
   importCharacterFromPath,
   listCharacters,
   replaceAvatar,
+  setAvatarFromPath,
   updateCharacter
 } from '../lib/characterStorage'
+
+/** Identifies a gallery image to copy into a character's avatar (mirrors the renderer union). */
+type GalleryAvatarSource =
+  | { kind: 'dedicated'; file: string }
+  | { kind: 'story'; storySlug: string; relPath: string }
+
+const AVATAR_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.png': 'image/png'
+}
 
 export function registerCharactersIpc(): void {
   ipcMain.handle('characters:list', async (_e, workspace: string) => {
@@ -69,8 +83,25 @@ export function registerCharactersIpc(): void {
     return true
   })
 
+  // Copy a gallery/story image into the given character's avatar (no file dialog).
+  ipcMain.handle(
+    'characters:set-avatar-from-gallery',
+    async (_e, workspace: string, id: string, source: GalleryAvatarSource) => {
+      const parts =
+        source.kind === 'dedicated'
+          ? ['characters', 'gallery', id, source.file]
+          : ['stories', source.storySlug, source.relPath]
+      // Reject path traversal from the renderer-supplied filename/relPath.
+      if (parts.some((p) => typeof p !== 'string' || p.includes('..'))) {
+        throw new Error('Invalid image path')
+      }
+      return setAvatarFromPath(workspace, id, join(workspace, ...parts))
+    }
+  )
+
   ipcMain.handle('characters:read-avatar', async (_e, workspace: string, avatarRelPath: string) => {
     const buf = await readFile(join(workspace, 'characters', avatarRelPath))
-    return `data:image/png;base64,${buf.toString('base64')}`
+    const mime = AVATAR_MIME[extname(avatarRelPath).toLowerCase()] ?? 'image/png'
+    return `data:${mime};base64,${buf.toString('base64')}`
   })
 }

@@ -101,6 +101,7 @@ function StoryEditor({
   } = useStories()
   const { characters } = useCharacters()
   const imageEnabled = useSettings((s) => s.settings?.image.enabled ?? false)
+  const magicAutoStart = useSettings((s) => s.settings?.magicAutoStart ?? true)
   const settings = useSettings((s) => s.settings)
   const setActiveModelPreset = useSettings((s) => s.setActiveModelPreset)
   const patchActiveModelPreset = useSettings((s) => s.patchActiveModelPreset)
@@ -274,11 +275,11 @@ function StoryEditor({
     await generateImage(workspace, chapter.number, proseTail())
   }
 
-  // Resume an interrupted run from where it stopped — beats are already planned, prose is kept.
+  // Resume/start writing from where the plan stopped — beats are already planned, prose is kept.
   const onResumeMagic = async (): Promise<void> => {
     if (!chapter) return
     const ok = await askConfirm(
-      `Resume Magic Complete from beat ${magicDone + 1} of ${magicTotal}? This continues the interrupted run and locks the editor until it finishes or you press Stop.`
+      `Resume Magic Complete from beat ${magicDone + 1} of ${magicTotal}? This writes the remaining beats and locks the editor until it finishes or you press Stop.`
     )
     if (!ok) return
     await flushSave()
@@ -295,14 +296,20 @@ function StoryEditor({
       )
       return
     }
+    // With auto-start off, Magic Complete only plans the beats (nothing is written until Resume), so the
+    // confirmations describe planning rather than a full write.
     const note = imageEnabled
       ? 'It breaks this chapter’s outline into story beats, then writes each beat as its own passage with an inline image after it.'
       : 'It breaks this chapter’s outline into story beats, then writes each beat as its own passage. Image generation is off, so no images will be added.'
     const hasContent = contentDraft.trim().length > 0 || magicTotal > 0
     const ok = await askConfirm(
       hasContent
-        ? `Start Magic Complete over?\n\nThis clears this chapter's current text and images, re-plans the outline into new beats, and writes the whole chapter again. This cannot be undone.`
-        : `Magic Complete this chapter?\n\n${note}\n\nThis can take a while and locks the editor until it finishes or you press Stop.`
+        ? magicAutoStart
+          ? `Start Magic Complete over?\n\nThis clears this chapter's current text and images, re-plans the outline into new beats, and writes the whole chapter again. This cannot be undone.`
+          : `Start Magic Complete over?\n\nThis clears this chapter's current text and images and re-plans the outline into new beats for you to review. Nothing is written until you press Resume. This cannot be undone.`
+        : magicAutoStart
+          ? `Magic Complete this chapter?\n\n${note}\n\nThis can take a while and locks the editor until it finishes or you press Stop.`
+          : `Plan Magic Complete beats for this chapter?\n\nIt breaks the outline into story beats and stops so you can review, edit, and reorder them. Nothing is written until you press Resume.`
     )
     if (!ok) return
     await flushSave()

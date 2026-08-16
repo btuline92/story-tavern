@@ -18,6 +18,7 @@ interface SettingsState {
   setActivePresetId: (workspace: string, id: string | null) => Promise<void>
   setImage: (workspace: string, patch: Partial<ImageSettings>) => Promise<void>
   setOpenRouter: (workspace: string, patch: Partial<OpenRouterSettings>) => Promise<void>
+  setMagicAutoStart: (workspace: string, value: boolean) => Promise<void>
   /** Set the model preset used for generation (used by the story-editor switcher). */
   setActiveModelPreset: (workspace: string, id: string) => Promise<void>
   /** Patch the active model preset in place (used by the story-editor model picker). */
@@ -92,6 +93,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
       ...current,
       openrouter: { ...current.openrouter, ...patch }
     })
+  },
+  setMagicAutoStart: async (workspace, value) => {
+    const current = get().settings
+    if (!current) return
+    await persist(workspace, set, { ...current, magicAutoStart: value })
   },
   setActiveModelPreset: async (workspace, id) => {
     const current = get().settings

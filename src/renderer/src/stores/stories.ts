@@ -494,6 +494,10 @@ export const useStories = create<StoriesState>((set, get) => ({
           magic_beats_done: 0
         })
         set({ magicPlanning: false, magicBeats: beats })
+        // Auto-start off: stop after planning so the user can review/edit/reorder the beats. The run
+        // is left at 0/N (beats saved, none written); pressing Resume writes them. (finally resets flags.)
+        const autoStart = useSettings.getState().settings?.magicAutoStart ?? true
+        if (!autoStart) return
       }
 
       // 2. Write each remaining beat as its own passage (+ inline image), in order.

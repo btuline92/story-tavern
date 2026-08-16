@@ -103,6 +103,7 @@ export interface WorkspaceSettings {
   image: ImageSettings
   summarizer: SummarizerSettings
   openrouter: OpenRouterSettings
+  magicAutoStart: boolean
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
 }
@@ -308,6 +309,14 @@ const api = {
       ipcRenderer.invoke('characters:update', workspace, id, patch),
     pickAvatar: (workspace: string, id: string): Promise<unknown | null> =>
       ipcRenderer.invoke('characters:pick-avatar', workspace, id),
+    setAvatarFromGallery: (
+      workspace: string,
+      id: string,
+      source:
+        | { kind: 'dedicated'; file: string }
+        | { kind: 'story'; storySlug: string; relPath: string }
+    ): Promise<unknown> =>
+      ipcRenderer.invoke('characters:set-avatar-from-gallery', workspace, id, source),
     exportCard: (workspace: string, id: string, name: string): Promise<string | null> =>
       ipcRenderer.invoke('characters:export', workspace, id, name),
     delete: (workspace: string, id: string): Promise<boolean> =>

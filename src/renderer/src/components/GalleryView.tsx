@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { useWorkspace } from '../stores/workspace'
 import { askConfirm } from '../stores/dialog'
-import type { GalleryImage, StoryGalleryImage } from '../types'
+import type { GalleryAvatarSource, GalleryImage, StoryGalleryImage } from '../types'
 import { AvatarThumb } from './AvatarThumb'
 import { Lightbox } from './Lightbox'
 
@@ -61,12 +61,15 @@ function GalleryThumb(
 
 export function GalleryView(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
-  const { characters, load } = useCharacters()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { characters, load, setAvatarFromGallery } = useCharacters()
+  // Seed from the characters store's selection so "Go to gallery…" lands on the right character.
+  const [selectedId, setSelectedId] = useState<string | null>(() => useCharacters.getState().selectedId)
   const [dedicated, setDedicated] = useState<GalleryImage[]>([])
   const [stories, setStories] = useState<StoryGalleryImage[]>([])
   const [loading, setLoading] = useState(false)
   const [lightbox, setLightbox] = useState<Selected | null>(null)
+  // Key of the image most recently set as the avatar, for a brief "✓ Set" confirmation.
+  const [avatarSetKey, setAvatarSetKey] = useState<string | null>(null)
 
   useEffect(() => {
     load(workspace)
@@ -103,6 +106,18 @@ export function GalleryView(): React.JSX.Element {
     await window.api.gallery.delete(workspace, activeId, file)
     await refresh()
   }
+
+  // Set the shown character's avatar from a gallery/story image (all images shown belong to activeId).
+  const setAvatar = async (key: string, source: GalleryAvatarSource): Promise<void> => {
+    if (!activeId) return
+    const updated = await setAvatarFromGallery(workspace, activeId, source)
+    if (updated) {
+      setAvatarSetKey(key)
+      setTimeout(() => setAvatarSetKey((k) => (k === key ? null : k)), 1500)
+    }
+  }
+
+  const activeName = characters.find((c) => c.id === activeId)?.name ?? 'this character'
 
   return (
     <div className="flex h-full">
@@ -161,6 +176,14 @@ export function GalleryView(): React.JSX.Element {
                       />
                       <button
                         type="button"
+                        onClick={() => setAvatar(`d:${img.file}`, { kind: 'dedicated', file: img.file })}
+                        title={`Set as ${activeName}'s avatar`}
+                        className="absolute left-1 top-1 rounded-md bg-surface/90 px-2 py-1 text-xs text-ink-900 opacity-0 shadow transition hover:bg-surface group-hover:opacity-100"
+                      >
+                        {avatarSetKey === `d:${img.file}` ? '✓ Set' : '★ Avatar'}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => del(img.file)}
                         title="Delete this picture"
                         className="absolute right-1 top-1 rounded-md bg-surface/90 px-2 py-1 text-xs text-danger opacity-0 shadow transition hover:bg-surface group-hover:opacity-100"
@@ -193,6 +216,20 @@ export function GalleryView(): React.JSX.Element {
                         title={img.prompt}
                         onOpen={setLightbox}
                       />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAvatar(`s:${img.storySlug}/${img.relPath}`, {
+                            kind: 'story',
+                            storySlug: img.storySlug,
+                            relPath: img.relPath
+                          })
+                        }
+                        title={`Set as ${activeName}'s avatar`}
+                        className="absolute left-1 top-1 rounded-md bg-surface/90 px-2 py-1 text-xs text-ink-900 opacity-0 shadow transition hover:bg-surface group-hover:opacity-100"
+                      >
+                        {avatarSetKey === `s:${img.storySlug}/${img.relPath}` ? '✓ Set' : '★ Avatar'}
+                      </button>
                       <div className="pointer-events-none absolute inset-x-0 bottom-0 truncate rounded-b-lg bg-black/50 px-1.5 py-0.5 text-[10px] text-white/90">
                         {img.storyTitle}
                       </div>

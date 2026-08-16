@@ -236,6 +236,9 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
   // Inline beat editing in the Magic Complete tile view (index into the active chapter's beats).
   const [editingBeat, setEditingBeat] = useState<number | null>(null)
   const [beatDraft, setBeatDraft] = useState('')
+  // Manual "add a beat by hand" editor (appends to the plan; reorder then slots it into place).
+  const [adding, setAdding] = useState(false)
+  const [addDraft, setAddDraft] = useState('')
 
   useEffect(() => {
     loadChars(workspace)
@@ -243,10 +246,11 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     loadPlugins(workspace)
   }, [workspace])
 
-  // Drop any in-progress beat edit when the active chapter changes (the index would point elsewhere).
+  // Drop any in-progress beat edit/add when the active chapter changes (the index would point elsewhere).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditingBeat(null)
+    setAdding(false)
   }, [activeChapterNumber])
 
   // Initialize drafts ONLY when the active story id changes (or active goes null).
@@ -363,6 +367,25 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     if (!text || text === beats[idx]) return
     const next = [...beats]
     next[idx] = text
+    await updateChapter(workspace, activeChapter.number, { magic_beats: next })
+  }
+
+  // Append a hand-written beat (skip planning from the outline, or add a piece to an existing plan).
+  const addBeat = async (): Promise<void> => {
+    const text = addDraft.trim()
+    setAdding(false)
+    setAddDraft('')
+    if (!text || !activeChapter) return
+    await updateChapter(workspace, activeChapter.number, { magic_beats: [...beats, text] })
+  }
+
+  // Swap a beat with its neighbor. Unrestricted (including across written beats) so a new beat can be
+  // slotted between older steps; magic_beats_done is a raw front-count and doesn't move the prose.
+  const moveBeat = async (from: number, to: number): Promise<void> => {
+    if (!activeChapter || magicActive || to < 0 || to >= beats.length || from === to) return
+    const next = [...beats]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
     await updateChapter(workspace, activeChapter.number, { magic_beats: next })
   }
 
@@ -501,8 +524,8 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
         <Section title="Magic Complete" defaultOpen={beats.length > 0}>
           {beats.length === 0 ? (
             <div className="text-xs text-ink-700">
-              No beats yet. Run Magic Complete on a chapter to plan and write its beats; they&apos;ll
-              show here with progress, and an interrupted run can be resumed.
+              No beats yet. Run Magic Complete on a chapter to plan them from the outline, or build a
+              plan by hand with ＋ Add beat below. An interrupted run can be resumed.
             </div>
           ) : (
             <>
@@ -512,8 +535,8 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
               </div>
               {!magicActive && (
                 <div className="text-xs text-ink-700">
-                  Edit a beat with ✎, or press ↺ on a written beat to set the run back to it (Resume
-                  then rewrites from there; the old prose stays — remove it yourself).
+                  ✎ edit · ▲▼ reorder · ↺ set the run back to a written beat. Reordering changes the
+                  plan only — it doesn&apos;t move the prose already written, so tidy that yourself.
                 </div>
               )}
               <ol className="space-y-1">
@@ -564,7 +587,25 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
                           </span>
                           <span className="min-w-0 flex-1">{beat}</span>
                           {!magicActive && (
-                            <span className="shrink-0 flex gap-1">
+                            <span className="shrink-0 flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => void moveBeat(i, i - 1)}
+                                disabled={i === 0}
+                                title="Move beat up"
+                                className="rounded px-1 leading-none text-ink-700 hover:bg-ink-100 disabled:opacity-30"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void moveBeat(i, i + 1)}
+                                disabled={i === beats.length - 1}
+                                title="Move beat down"
+                                className="rounded px-1 leading-none text-ink-700 hover:bg-ink-100 disabled:opacity-30"
+                              >
+                                ▼
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => startEditBeat(i)}
@@ -593,6 +634,51 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
               </ol>
             </>
           )}
+
+          {!magicActive &&
+            (adding ? (
+              <div className="mt-2 space-y-1 rounded-md border border-dashed border-ink-200 px-2 py-1.5">
+                <textarea
+                  value={addDraft}
+                  onChange={(e) => setAddDraft(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  placeholder="Describe the beat to add — it's appended to the end; use ▲ to move it into place."
+                  className="w-full resize-y rounded border border-ink-200 px-2 py-1 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                />
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void addBeat()}
+                    disabled={!addDraft.trim()}
+                    className="rounded bg-accent-500 px-2 py-0.5 text-xs font-medium text-white hover:bg-accent-600 disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdding(false)
+                      setAddDraft('')
+                    }}
+                    className="rounded border border-ink-200 px-2 py-0.5 text-xs hover:bg-ink-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setAddDraft('')
+                  setAdding(true)
+                }}
+                className="mt-2 w-full rounded-md border border-dashed border-ink-200 px-2 py-1.5 text-xs text-ink-700 hover:bg-ink-100"
+              >
+                ＋ Add beat
+              </button>
+            ))}
         </Section>
 
         {/*

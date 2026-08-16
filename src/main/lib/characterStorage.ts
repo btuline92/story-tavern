@@ -261,6 +261,47 @@ export async function updateCharacter(
   return toCharacter(fm, nextDescription)
 }
 
+const AVATAR_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+
+/**
+ * Set a character's avatar from an existing image on disk (e.g. a gallery or story image), copying it
+ * into the avatars folder. Unlike replaceAvatar (PNG-only, file-dialog sourced), this preserves the
+ * source extension so jpg/webp story images work, and writes a UNIQUELY-named file (`<slug>-<ulid>.<ext>`)
+ * so the stored avatar path always changes — that busts the renderer's path-keyed avatar cache so the
+ * new image shows immediately. The previous avatar file is removed to avoid orphans.
+ */
+export async function setAvatarFromPath(
+  workspace: string,
+  id: string,
+  sourcePath: string
+): Promise<Character> {
+  const ext = extname(sourcePath).toLowerCase()
+  if (!AVATAR_EXTS.has(ext)) {
+    throw new Error(`Unsupported avatar image type: ${ext || '(unknown)'}`)
+  }
+  const current = await findById(workspace, id)
+  if (!current) throw new Error(`Character not found: ${id}`)
+  const avatarsDir = join(workspace, 'characters', 'avatars')
+  await mkdir(avatarsDir, { recursive: true })
+  const avatarRel = `avatars/${current.slug}-${ulid()}${ext}`
+  // Remove the previous avatar file (different name now) so old images don't pile up.
+  if (current.avatar) {
+    await rm(join(workspace, 'characters', current.avatar)).catch(() => {})
+  }
+  await copyFile(sourcePath, join(workspace, 'characters', avatarRel))
+  const fm: Frontmatter = {
+    id: current.id,
+    name: current.name,
+    slug: current.slug,
+    created_at: current.created_at,
+    source: current.source,
+    avatar: avatarRel,
+    tavern_data: current.tavern_data
+  }
+  await writeCharacterFile(workspace, fm, current.description)
+  return toCharacter(fm, current.description)
+}
+
 export async function replaceAvatar(
   workspace: string,
   id: string,
