@@ -370,6 +370,21 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     await updateChapter(workspace, activeChapter.number, { magic_beats: next })
   }
 
+  // Remove a beat from the plan. We keep the done-counter consistent (drop by one if a written beat
+  // is removed, so no beat is silently skipped) but leave the prose alone — cleanup is on the user.
+  const deleteBeat = async (): Promise<void> => {
+    if (editingBeat == null || !activeChapter) return
+    const idx = editingBeat
+    if (!(await askConfirm('Delete this beat from the plan? This cannot be undone.'))) return
+    setEditingBeat(null)
+    const next = beats.filter((_, i) => i !== idx)
+    const nextDone = idx < beatsDone ? beatsDone - 1 : beatsDone
+    await updateChapter(workspace, activeChapter.number, {
+      magic_beats: next,
+      magic_beats_done: nextDone
+    })
+  }
+
   // Append a hand-written beat (skip planning from the outline, or add a piece to an existing plan).
   const addBeat = async (): Promise<void> => {
     const text = addDraft.trim()
@@ -577,6 +592,13 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
                               className="rounded border border-ink-200 px-2 py-0.5 text-xs hover:bg-ink-100"
                             >
                               Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteBeat()}
+                              className="ml-auto rounded border border-danger/40 px-2 py-0.5 text-xs text-danger hover:bg-danger/10"
+                            >
+                              Delete
                             </button>
                           </div>
                         </div>
