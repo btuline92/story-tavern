@@ -3,7 +3,7 @@ import { useCharacters } from '../stores/characters'
 import { useStories } from '../stores/stories'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
-import { askConfirm, showAlert } from '../stores/dialog'
+import { askChoice, askConfirm, showAlert } from '../stores/dialog'
 import { EMPTY_STORY_FILTER, filterStories, isStoryFilterActive } from '../lib/storyFilter'
 import { NewStoryDialog } from './NewStoryDialog'
 import { StoryDetailsPanel } from './StoryDetailsPanel'
@@ -257,15 +257,39 @@ function StoryEditor({
   }
 
   const onClearChapter = async (): Promise<void> => {
-    if (!chapter || (!contentDraft.trim() && magicTotal === 0)) return
-    if (!(await askConfirm('Clear all text and images from this chapter? This cannot be undone.')))
-      return
-    setContentDraft('')
-    // Also drop the saved Magic Complete beats — the prose they produced is being cleared.
+    if (!chapter) return
+    const hasContent = contentDraft.trim().length > 0
+    const hasBeats = magicTotal > 0
+    if (!hasContent && !hasBeats) return
+    const beatLabel = `${magicTotal} Magic Complete beat${magicTotal === 1 ? '' : 's'}`
+
+    let clearContent = false
+    let clearBeats = false
+    if (hasContent && hasBeats) {
+      // Both present → let the user keep the beats while clearing the prose (or clear both).
+      const choice = await askChoice(
+        `Clear this chapter? It has text/images and ${beatLabel}.`,
+        [
+          { label: 'Clear content only', value: 'content' },
+          { label: 'Clear all', value: 'all', style: 'danger' }
+        ]
+      )
+      if (choice == null) return
+      clearContent = true
+      clearBeats = choice === 'all'
+    } else if (hasContent) {
+      if (!(await askConfirm('Clear all text and images from this chapter? This cannot be undone.')))
+        return
+      clearContent = true
+    } else {
+      if (!(await askConfirm(`Clear this chapter's ${beatLabel}?`))) return
+      clearBeats = true
+    }
+
+    if (clearContent) setContentDraft('')
     await updateChapter(workspace, chapter.number, {
-      content: '',
-      magic_beats: [],
-      magic_beats_done: 0
+      ...(clearContent ? { content: '' } : {}),
+      ...(clearBeats ? { magic_beats: [], magic_beats_done: 0 } : {})
     })
   }
 
@@ -441,7 +465,7 @@ function StoryEditor({
           <button
             type="button"
             onClick={onClearChapter}
-            disabled={busy || !contentDraft.trim()}
+            disabled={busy || (!contentDraft.trim() && magicTotal === 0)}
             title="Delete all text and images in this chapter (keeps the title and outline)"
             className="rounded-md border border-ink-200 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
           >

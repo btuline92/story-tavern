@@ -211,6 +211,7 @@ export interface WorkspaceSettings {
   summarizer: SummarizerSettings
   openrouter: OpenRouterSettings
   magicAutoStart: boolean
+  magicBeatPrompt: string
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
 }

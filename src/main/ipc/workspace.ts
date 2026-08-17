@@ -144,6 +144,8 @@ export interface WorkspaceSettings {
   /** When on, Magic Complete writes all beats straight through after planning them. When off, it
    *  plans the beats and stops at 0/N so the user can review/edit/reorder before pressing Resume. */
   magicAutoStart: boolean
+  /** Editable system prompt that breaks a chapter outline into Magic Complete beats. */
+  magicBeatPrompt: string
   /** Named model configs; `activeModelPresetId` selects the one used for generation. */
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
@@ -283,6 +285,20 @@ Given the existing synopsis (if any) and the next chapters, output a single UPDA
 - NSFW content is allowed if the story contains it.
 
 Output ONLY the updated synopsis. No preamble, no headings, no commentary.`
+
+// Default Magic Complete beat-planning system prompt. The count is driven by the outline (no fixed
+// number) so a 10-item outline yields ~10 beats. Editable per workspace (settings.magicBeatPrompt).
+export const DEFAULT_MAGIC_BEAT_PROMPT = `You are a story-planning assistant. You break a chapter outline into an ordered list of concrete story beats.
+A beat is a single step of the chapter — one action, turn, revelation, or emotional shift — that would be written as roughly a few paragraphs of prose.
+
+Rules:
+- Order the beats as they occur in the chapter.
+- Together the beats must cover the entire outline. Do not invent a different plot; you may add small connective moments.
+- Let the outline decide how many beats there are: if it is a numbered or bulleted list, produce one beat per item; otherwise break it into as many beats as its distinct events require. Do not pad it out or compress it.
+- Each beat is one or two sentences of plain description of what happens, not prose.
+- Respond with ONLY a JSON array of strings and nothing else — no prose, no keys, no markdown fences.
+- NSFW content is allowed if the outline calls for it.
+Example: ["Beat one...", "Beat two...", "Beat three..."]`
 
 const DEFAULT_SUMMARIZER: SummarizerSettings = {
   enabled: false,
@@ -501,6 +517,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   summarizer: { ...DEFAULT_SUMMARIZER },
   openrouter: { ...DEFAULT_OPENROUTER },
   magicAutoStart: true,
+  magicBeatPrompt: DEFAULT_MAGIC_BEAT_PROMPT,
   modelPresets: [{ ...DEFAULT_MODEL_PRESET, generation: { ...DEFAULT_GENERATION } }],
   activeModelPresetId: 'default'
 }
@@ -587,6 +604,11 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
     openrouter: mergeOpenRouter(r.openrouter),
     // Default on for existing workspaces (older settings have no such field).
     magicAutoStart: typeof r.magicAutoStart === 'boolean' ? r.magicAutoStart : true,
+    // Empty/whitespace falls back to the default so a cleared field self-heals.
+    magicBeatPrompt:
+      typeof r.magicBeatPrompt === 'string' && r.magicBeatPrompt.trim()
+        ? r.magicBeatPrompt
+        : DEFAULT_MAGIC_BEAT_PROMPT,
     modelPresets,
     activeModelPresetId
   }

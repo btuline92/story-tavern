@@ -150,8 +150,9 @@ function buildBeatPlanEntries(args: {
   chapter: Chapter
   outline: string
   characters: TavernV2Data[]
+  systemPrompt: string
 }): PromptEntry[] {
-  const { story, chapter, outline, characters } = args
+  const { story, chapter, outline, characters, systemPrompt } = args
   const charLines = characters
     .map((c) => {
       const name = c.name?.trim() || 'Character'
@@ -162,20 +163,8 @@ function buildBeatPlanEntries(args: {
   const priorProse = stripImageMarkers(chapter.content).trim()
   const tail = priorProse.slice(-1200)
 
-  const system: PromptEntry = {
-    role: 'system',
-    content:
-      'You are a story-planning assistant. You break a chapter outline into an ordered list of concrete story beats.\n' +
-      'A beat is a single step of the chapter — one action, turn, revelation, or emotional shift — that would be written as roughly a few paragraphs of prose.\n\n' +
-      'Rules:\n' +
-      '- Order the beats as they occur in the chapter.\n' +
-      '- Together the beats must cover the entire outline. Do not invent a different plot; you may add small connective moments.\n' +
-      '- Each beat is one or two sentences of plain description of what happens, not prose.\n' +
-      '- Prefer 4–8 beats for a normal outline; use fewer for a thin outline, more for a dense one.\n' +
-      '- Respond with ONLY a JSON array of strings and nothing else — no prose, no keys, no markdown fences. ' +
-      '- NSFW content is allowed if the outline calls for it. \n' +
-      'Example: ["Beat one...", "Beat two...", "Beat three..."]'
-  }
+  // The system prompt is an editable workspace setting (settings.magicBeatPrompt); default in workspace.ts.
+  const system: PromptEntry = { role: 'system', content: systemPrompt }
 
   const parts: string[] = [`Story title: ${story.meta.title || 'Untitled'}`]
   if (story.meta.premise?.trim()) parts.push(`Premise:\n${story.meta.premise.trim()}`)
@@ -573,7 +562,13 @@ export function registerGenerationIpc(): void {
       }
 
       const characters = await readCharactersData(workspace, story.meta.character_ids)
-      const entries = buildBeatPlanEntries({ story, chapter, outline, characters })
+      const entries = buildBeatPlanEntries({
+        story,
+        chapter,
+        outline,
+        characters,
+        systemPrompt: settings.magicBeatPrompt
+      })
 
       const ctrl = new AbortController()
       let planError: string | null = null
