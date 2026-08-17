@@ -8,6 +8,7 @@ import { CharacterDetail } from './components/CharacterDetail'
 import { Settings } from './components/Settings'
 import { PresetsView } from './components/PresetsView'
 import { PluginsView } from './components/PluginsView'
+import { LorebooksView } from './components/LorebooksView'
 import { StoriesView } from './components/StoriesView'
 import { GalleryView } from './components/GalleryView'
 import { PhotographyView } from './components/PhotographyView'
@@ -23,6 +24,7 @@ type View =
   | 'photography'
   | 'presets'
   | 'plugins'
+  | 'lorebooks'
   | 'images'
   | 'summarizer'
   | 'logs'
@@ -35,6 +37,7 @@ const TABS: { id: View; label: string }[] = [
   { id: 'photography', label: 'Photography' },
   { id: 'presets', label: 'Presets' },
   { id: 'plugins', label: 'Plugins' },
+  { id: 'lorebooks', label: 'Lorebooks' },
   { id: 'images', label: 'Images' },
   { id: 'summarizer', label: 'Summarizer' },
   { id: 'logs', label: 'Logs' },
@@ -163,6 +166,10 @@ function App(): React.JSX.Element {
       ) : view === 'plugins' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">
           <PluginsView />
+        </main>
+      ) : view === 'lorebooks' ? (
+        <main className="row-start-2 col-span-2 overflow-hidden">
+          <LorebooksView />
         </main>
       ) : view === 'stories' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">

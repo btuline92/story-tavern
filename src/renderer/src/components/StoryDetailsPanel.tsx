@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useCharacters } from '../stores/characters'
 import { usePresets } from '../stores/presets'
 import { usePlugins } from '../stores/plugins'
+import { useLorebooks } from '../stores/lorebooks'
 import { useSettings } from '../stores/settings'
 import { useStories } from '../stores/stories'
 import { askConfirm } from '../stores/dialog'
@@ -15,6 +16,7 @@ interface DraftMeta {
   characterIds: string[]
   presetId: string | null
   pluginIds: string[]
+  lorebookIds: string[]
   premise: string
 }
 
@@ -227,6 +229,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
   const { characters, load: loadChars } = useCharacters()
   const { presets, load: loadPresets } = usePresets()
   const { plugins, load: loadPlugins } = usePlugins()
+  const { lorebooks, load: loadLorebooks } = useLorebooks()
 
   const [draft, setDraft] = useState<DraftMeta | null>(null)
   const [saving, setSaving] = useState(false)
@@ -244,6 +247,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     loadChars(workspace)
     loadPresets(workspace)
     loadPlugins(workspace)
+    loadLorebooks(workspace)
   }, [workspace])
 
   // Drop any in-progress beat edit/add when the active chapter changes (the index would point elsewhere).
@@ -271,6 +275,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
         characterIds: active.meta.character_ids,
         presetId: active.meta.preset_id,
         pluginIds: active.meta.plugin_ids,
+        lorebookIds: active.meta.lorebook_ids,
         premise: active.meta.premise
       })
     }
@@ -285,6 +290,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
       JSON.stringify(draft.characterIds) !== JSON.stringify(active.meta.character_ids) ||
       draft.presetId !== active.meta.preset_id ||
       JSON.stringify(draft.pluginIds) !== JSON.stringify(active.meta.plugin_ids) ||
+      JSON.stringify(draft.lorebookIds) !== JSON.stringify(active.meta.lorebook_ids) ||
       draft.premise !== active.meta.premise)
 
   // Debounced autosave: drafts are the source of truth; flow is one-way to disk.
@@ -302,6 +308,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
             characterIds: draft.characterIds,
             presetId: draft.presetId,
             pluginIds: draft.pluginIds,
+            lorebookIds: draft.lorebookIds,
             premise: draft.premise
           })
         } finally {
@@ -321,6 +328,7 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
     draft?.characterIds,
     draft?.presetId,
     draft?.pluginIds,
+    draft?.lorebookIds,
     draft?.premise
   ])
 
@@ -516,6 +524,47 @@ export function StoryDetailsPanel({ workspace }: Props): React.JSX.Element | nul
           )}
           <div className="text-xs text-ink-700 mt-1">
             Enabled plugins are appended to the end of the system prompt for this story.
+          </div>
+        </Section>
+
+        <Section title="Lorebooks" defaultOpen={false}>
+          {lorebooks.length === 0 ? (
+            <div className="text-xs text-ink-700">
+              No lorebooks yet. Create or import World Info lorebooks in the Lorebooks tab.
+            </div>
+          ) : (
+            <div className="max-h-60 overflow-y-auto rounded-md border border-ink-200">
+              {lorebooks.map((lb) => (
+                <label
+                  key={lb.id}
+                  className="flex items-start gap-2 px-3 py-1.5 hover:bg-ink-100 cursor-pointer border-b border-ink-100 last:border-b-0"
+                >
+                  <input
+                    type="checkbox"
+                    checked={draft.lorebookIds.includes(lb.id)}
+                    onChange={() =>
+                      setField(
+                        'lorebookIds',
+                        draft.lorebookIds.includes(lb.id)
+                          ? draft.lorebookIds.filter((x) => x !== lb.id)
+                          : [...draft.lorebookIds, lb.id]
+                      )
+                    }
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm text-ink-900">{lb.name}</div>
+                    <div className="truncate text-xs text-ink-700">
+                      {lb.entries.length} {lb.entries.length === 1 ? 'entry' : 'entries'}
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="text-xs text-ink-700 mt-1">
+            Enabled lorebooks inject matching entries (by keyword, plus always-on entries) into the
+            prompt for this story.
           </div>
         </Section>
 

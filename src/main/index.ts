@@ -14,6 +14,7 @@ import { registerComfyIpc } from './ipc/comfy'
 import { registerImageIpc } from './ipc/image'
 import { registerGalleryIpc } from './ipc/gallery'
 import { registerPluginsIpc } from './ipc/plugins'
+import { registerLorebooksIpc } from './ipc/lorebooks'
 
 // TEMPORARY: print renderer focus diagnostics forwarded from the preload debug channel.
 ipcMain.on('debug:log', (_e, message: string) => {
@@ -96,6 +97,7 @@ app.whenReady().then(() => {
   registerImageIpc()
   registerGalleryIpc()
   registerPluginsIpc()
+  registerLorebooksIpc()
 
   createWindow()
 

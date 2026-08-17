@@ -1,5 +1,7 @@
 import type { Preset, MarkerType } from './presetStore'
 import type { TavernV2Data } from './tavernCard'
+import type { Lorebook } from './lorebookStore'
+import { selectEntries, DEFAULT_LOREBOOK_GLOBALS, type LorebookGlobals } from './lorebookMatch'
 
 export type EntryRole = 'system' | 'user' | 'assistant'
 
@@ -26,6 +28,9 @@ export interface AssemblyContext {
   storySummary?: string
   /** Chapters with number <= this are covered by the summary and excluded from the manuscript. */
   summarizedThroughChapter?: number
+  /** Lorebooks attached to the story; keyword-matched against the manuscript and injected. */
+  lorebooks?: Lorebook[]
+  lorebookGlobals?: LorebookGlobals
 }
 
 /**
@@ -192,15 +197,46 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
   // manuscript so it reads as story content continuous with the recent prose (see buildSummaryEntry).
   const summaryEntry = buildSummaryEntry(ctx)
   let summaryPushed = false
+
+  // Lorebooks: keyword-match the outgoing manuscript (what the model actually sees, already bounded by
+  // the summarizer). "before/after" entries become one system "World Info" block placed right before
+  // the summary/manuscript; "atDepth" entries are injected near the end (see below).
+  const matchedLore =
+    ctx.lorebooks && ctx.lorebooks.length
+      ? selectEntries(
+          ctx.lorebooks,
+          manuscriptText(ctx),
+          ctx.lorebookGlobals ?? DEFAULT_LOREBOOK_GLOBALS
+        )
+      : []
+  const loreAtDepth = matchedLore.filter((e) => e.position === 4)
+  const loreBefore = matchedLore.filter((e) => e.position !== 4)
+  const loreEntry: PromptEntry | null = loreBefore.length
+    ? {
+        role: 'system',
+        content:
+          '### World Info\n\n' +
+          loreBefore.map((e) => interpolate(e.content, ctx).trim()).join('\n\n')
+      }
+    : null
+  let lorePushed = false
+  const pushLoreThenSummary = (): void => {
+    if (loreEntry && !lorePushed) {
+      entries.push(loreEntry)
+      lorePushed = true
+    }
+    if (summaryEntry && !summaryPushed) {
+      entries.push(summaryEntry)
+      summaryPushed = true
+    }
+  }
+
   for (const block of preset.blocks) {
     if (!block.enabled) continue
     if (block.marker) {
       if (block.markerType === 'manuscript') {
         manuscriptSeen = true
-        if (summaryEntry && !summaryPushed) {
-          entries.push(summaryEntry)
-          summaryPushed = true
-        }
+        pushLoreThenSummary()
       }
       const entry = block.markerType ? expandMarker(block.markerType, ctx) : null
       if (entry) entries.push(entry)
@@ -209,12 +245,9 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
       if (content) entries.push({ role: block.role, content })
     }
   }
-  // If the preset has no manuscript marker, the model still needs the summary + prose to continue.
+  // If the preset has no manuscript marker, the model still needs the lore + summary + prose to continue.
   if (!manuscriptSeen) {
-    if (summaryEntry && !summaryPushed) {
-      entries.push(summaryEntry)
-      summaryPushed = true
-    }
+    pushLoreThenSummary()
     const ms = manuscriptText(ctx)
     if (ms)
       entries.push({ role: 'user', content: `--- MANUSCRIPT ---\n${ms}\n--- END MANUSCRIPT ---` })
@@ -236,6 +269,15 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
   for (const plugin of ctx.plugins ?? []) {
     const content = interpolate(plugin, ctx).trim()
     if (content) entries.push({ role: 'system', content })
+  }
+  // Lorebook "at depth" entries: no true chat depth here, so inject near the end for recency, honoring
+  // each entry's role (0 system, 1 user, 2 assistant).
+  for (const e of loreAtDepth) {
+    const content = interpolate(e.content, ctx).trim()
+    if (content) {
+      const role: EntryRole = e.role === 1 ? 'user' : e.role === 2 ? 'assistant' : 'system'
+      entries.push({ role, content })
+    }
   }
   // The current beat directive sits closest to the final nudge for maximum recency.
   const beat = beatGuidance(ctx)

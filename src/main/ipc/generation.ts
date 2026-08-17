@@ -10,6 +10,7 @@ import { streamContinue } from '../lib/streamGeneration'
 import { logApiCall } from '../lib/apiLogger'
 import { readCharactersData } from '../lib/characterData'
 import { getPluginsByIds } from '../lib/pluginStore'
+import { getLorebooksByIds } from '../lib/lorebookStore'
 import type { TavernV2Data } from '../lib/tavernCard'
 import type { StoryWithChapters, Chapter } from '../lib/storyStorage'
 
@@ -441,6 +442,7 @@ export function registerGenerationIpc(): void {
 
       const characters = await readCharactersData(workspace, story.meta.character_ids)
       const activePlugins = await getPluginsByIds(workspace, story.meta.plugin_ids)
+      const activeLorebooks = await getLorebooksByIds(workspace, story.meta.lorebook_ids)
 
       const entries = assemble(preset, {
         characters,
@@ -458,6 +460,7 @@ export function registerGenerationIpc(): void {
         beatIndex,
         beatTotal,
         plugins: activePlugins.map((p) => p.content),
+        lorebooks: activeLorebooks,
         // Summary context — only when the summarizer is enabled; otherwise send full chapters.
         storySummary: settings.summarizer.enabled ? story.meta.summary : '',
         summarizedThroughChapter: settings.summarizer.enabled
@@ -919,6 +922,7 @@ export function registerGenerationIpc(): void {
       const presetId = story.meta.preset_id ?? settings.activePresetId
       const preset = (presetId ? await getPreset(workspace, presetId) : null) ?? defaultPreset()
       const activePlugins = await getPluginsByIds(workspace, story.meta.plugin_ids)
+      const activeLorebooks = await getLorebooksByIds(workspace, story.meta.lorebook_ids)
       const assembled = assemble(preset, {
         characters,
         storyTitle: story.meta.title,
@@ -931,6 +935,7 @@ export function registerGenerationIpc(): void {
         })),
         activeChapterNumber: chapterNumber,
         plugins: activePlugins.map((p) => p.content),
+        lorebooks: activeLorebooks,
         storySummary: settings.summarizer.enabled ? story.meta.summary : '',
         summarizedThroughChapter: settings.summarizer.enabled
           ? (story.meta.summary_through_chapter ?? 0)

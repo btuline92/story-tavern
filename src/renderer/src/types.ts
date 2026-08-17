@@ -74,6 +74,43 @@ export interface Plugin {
   updated_at: string
 }
 
+/** A SillyTavern-compatible lorebook entry (World Info). Field names follow the standalone WI format. */
+export interface LorebookEntry {
+  uid: number
+  key: string[]
+  keysecondary: string[]
+  comment: string
+  content: string
+  constant: boolean
+  disable: boolean
+  selective: boolean
+  selectiveLogic: number
+  order: number
+  position: number
+  depth: number
+  role: number
+  probability: number
+  useProbability: boolean
+  caseSensitive: boolean | null
+  matchWholeWords: boolean | null
+  scanDepth: number | null
+  excludeRecursion: boolean
+  preventRecursion: boolean
+  extensions: Record<string, unknown>
+}
+
+export interface Lorebook {
+  id: string
+  name: string
+  description: string
+  scan_depth: number | null
+  token_budget: number | null
+  recursive_scanning: boolean
+  entries: LorebookEntry[]
+  created_at: string
+  updated_at: string
+}
+
 export interface GenerationSettings {
   max_tokens: number
   temperature: number
@@ -238,6 +275,7 @@ export interface StoryMeta {
   character_ids: string[]
   preset_id: string | null
   plugin_ids: string[]
+  lorebook_ids: string[]
   premise: string
   created_at: string
   updated_at: string

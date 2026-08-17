@@ -16,6 +16,7 @@ export interface StoryMeta {
   character_ids: string[]
   preset_id: string | null
   plugin_ids: string[]
+  lorebook_ids: string[]
   premise: string
   created_at: string
   updated_at: string
@@ -56,6 +57,7 @@ function withDefaults(
     // since legacy prompts are migrated to presets with their original id.
     preset_id: meta.preset_id ?? meta.prompt_id ?? null,
     plugin_ids: Array.isArray(meta.plugin_ids) ? meta.plugin_ids : [],
+    lorebook_ids: Array.isArray(meta.lorebook_ids) ? meta.lorebook_ids : [],
     premise: typeof meta.premise === 'string' ? meta.premise : '',
     created_at: meta.created_at ?? new Date().toISOString(),
     updated_at: meta.updated_at ?? new Date().toISOString(),
@@ -277,6 +279,7 @@ export interface CreateStoryInput {
   characterIds: string[]
   presetId: string | null
   pluginIds?: string[]
+  lorebookIds?: string[]
   premise?: string
 }
 
@@ -296,6 +299,7 @@ export async function createStory(
     character_ids: input.characterIds,
     preset_id: input.presetId,
     plugin_ids: input.pluginIds ?? [],
+    lorebook_ids: input.lorebookIds ?? [],
     premise: input.premise ?? '',
     created_at: now,
     updated_at: now
@@ -325,6 +329,7 @@ export interface StoryMetaUpdate {
   characterIds?: string[]
   presetId?: string | null
   pluginIds?: string[]
+  lorebookIds?: string[]
   premise?: string
   notes?: string
   summary?: string
@@ -357,6 +362,7 @@ export async function updateStoryMeta(
     character_ids: patch.characterIds !== undefined ? patch.characterIds : current.character_ids,
     preset_id: patch.presetId !== undefined ? patch.presetId : current.preset_id,
     plugin_ids: patch.pluginIds !== undefined ? patch.pluginIds : current.plugin_ids,
+    lorebook_ids: patch.lorebookIds !== undefined ? patch.lorebookIds : current.lorebook_ids,
     premise: patch.premise !== undefined ? patch.premise : current.premise,
     notes: patch.notes !== undefined ? patch.notes : current.notes,
     summary: patch.summary !== undefined ? patch.summary : current.summary,

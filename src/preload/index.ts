@@ -208,6 +208,42 @@ export interface Plugin {
   updated_at: string
 }
 
+export interface LorebookEntry {
+  uid: number
+  key: string[]
+  keysecondary: string[]
+  comment: string
+  content: string
+  constant: boolean
+  disable: boolean
+  selective: boolean
+  selectiveLogic: number
+  order: number
+  position: number
+  depth: number
+  role: number
+  probability: number
+  useProbability: boolean
+  caseSensitive: boolean | null
+  matchWholeWords: boolean | null
+  scanDepth: number | null
+  excludeRecursion: boolean
+  preventRecursion: boolean
+  extensions: Record<string, unknown>
+}
+
+export interface Lorebook {
+  id: string
+  name: string
+  description: string
+  scan_depth: number | null
+  token_budget: number | null
+  recursive_scanning: boolean
+  entries: LorebookEntry[]
+  created_at: string
+  updated_at: string
+}
+
 export interface StoryMeta {
   id: string
   slug: string
@@ -217,6 +253,7 @@ export interface StoryMeta {
   character_ids: string[]
   preset_id: string | null
   plugin_ids: string[]
+  lorebook_ids: string[]
   premise: string
   created_at: string
   updated_at: string
@@ -372,6 +409,22 @@ const api = {
     delete: (workspace: string, id: string): Promise<boolean> =>
       ipcRenderer.invoke('plugins:delete', workspace, id)
   },
+  lorebooks: {
+    list: (workspace: string): Promise<Lorebook[]> =>
+      ipcRenderer.invoke('lorebooks:list', workspace),
+    get: (workspace: string, id: string): Promise<Lorebook | null> =>
+      ipcRenderer.invoke('lorebooks:get', workspace, id),
+    create: (workspace: string, name: string): Promise<Lorebook> =>
+      ipcRenderer.invoke('lorebooks:create', workspace, name),
+    save: (workspace: string, lorebook: Lorebook): Promise<Lorebook> =>
+      ipcRenderer.invoke('lorebooks:save', workspace, lorebook),
+    delete: (workspace: string, id: string): Promise<boolean> =>
+      ipcRenderer.invoke('lorebooks:delete', workspace, id),
+    import: (workspace: string): Promise<Lorebook | null> =>
+      ipcRenderer.invoke('lorebooks:import', workspace),
+    export: (workspace: string, id: string): Promise<string | null> =>
+      ipcRenderer.invoke('lorebooks:export', workspace, id)
+  },
   stories: {
     list: (workspace: string): Promise<StoryMeta[]> =>
       ipcRenderer.invoke('stories:list', workspace),
@@ -384,6 +437,7 @@ const api = {
         characterIds: string[]
         presetId: string | null
         pluginIds?: string[]
+        lorebookIds?: string[]
         premise?: string
       }
     ): Promise<StoryWithChapters> => ipcRenderer.invoke('stories:create', workspace, input),
@@ -397,6 +451,7 @@ const api = {
         characterIds?: string[]
         presetId?: string | null
         pluginIds?: string[]
+        lorebookIds?: string[]
         premise?: string
         notes?: string
         summary?: string

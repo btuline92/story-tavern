@@ -89,6 +89,7 @@ interface StoriesState {
       characterIds?: string[]
       presetId?: string | null
       pluginIds?: string[]
+      lorebookIds?: string[]
       premise?: string
       notes?: string
       summary?: string
