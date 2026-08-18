@@ -105,6 +105,7 @@ export interface WorkspaceSettings {
   openrouter: OpenRouterSettings
   magicAutoStart: boolean
   magicBeatPrompt: string
+  outlineToBeats: boolean
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
 }
@@ -174,6 +175,7 @@ export type BlockRole = 'system' | 'user' | 'assistant'
 export type MarkerType =
   | 'char_description'
   | 'char_personality'
+  | 'char_system_prompt'
   | 'scenario'
   | 'dialogue_examples'
   | 'story_premise'

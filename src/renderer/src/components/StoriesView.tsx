@@ -102,6 +102,7 @@ function StoryEditor({
   const { characters } = useCharacters()
   const imageEnabled = useSettings((s) => s.settings?.image.enabled ?? false)
   const magicAutoStart = useSettings((s) => s.settings?.magicAutoStart ?? true)
+  const outlineToBeats = useSettings((s) => s.settings?.outlineToBeats ?? false)
   const settings = useSettings((s) => s.settings)
   const setActiveModelPreset = useSettings((s) => s.setActiveModelPreset)
   const patchActiveModelPreset = useSettings((s) => s.patchActiveModelPreset)
@@ -808,7 +809,16 @@ function StoryEditor({
           storyId={active.meta.id}
           chapterNumber={chapter.number}
           onClose={() => setOutlineDialogOpen(false)}
-          onApply={(text) => setOutlineDraft(text)}
+          onApply={(text, beats) => {
+            setOutlineDraft(text)
+            // Optionally seed Magic Complete beats from the applied outline (settings.outlineToBeats).
+            if (outlineToBeats && chapter && beats.length > 0) {
+              void updateChapter(workspace, chapter.number, {
+                magic_beats: beats,
+                magic_beats_done: 0
+              })
+            }
+          }}
         />
       )}
     </div>

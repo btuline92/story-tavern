@@ -8,6 +8,7 @@ export type BlockRole = 'system' | 'user' | 'assistant'
 export type MarkerType =
   | 'char_description'
   | 'char_personality'
+  | 'char_system_prompt'
   | 'scenario'
   | 'dialogue_examples'
   | 'story_premise'
@@ -56,8 +57,10 @@ const ST_MARKER_MAP: Record<string, MarkerType> = {
   scenario: 'scenario',
   dialogueExamples: 'dialogue_examples',
   chatHistory: 'manuscript',
-  // Story Tavern extension — lets our premise marker round-trip through import/export.
+  // Story Tavern extensions — let our premise / character-instructions markers round-trip through
+  // import/export. Real SillyTavern harmlessly ignores these unknown identifiers.
   storyPremise: 'story_premise',
+  charSystemPrompt: 'char_system_prompt',
   personaDescription: 'unsupported',
   worldInfoBefore: 'unsupported',
   worldInfoAfter: 'unsupported',
@@ -72,7 +75,8 @@ const MARKER_TO_ST: Partial<Record<MarkerType, string>> = {
   scenario: 'scenario',
   dialogue_examples: 'dialogueExamples',
   manuscript: 'chatHistory',
-  story_premise: 'storyPremise'
+  story_premise: 'storyPremise',
+  char_system_prompt: 'charSystemPrompt'
 }
 
 function normalizeRole(role: unknown): BlockRole {
@@ -208,6 +212,13 @@ export function defaultPreset(): Preset {
         role: 'system',
         marker: true,
         markerType: 'char_personality',
+        content: ''
+      }),
+      mk({
+        name: 'Character instructions',
+        role: 'system',
+        marker: true,
+        markerType: 'char_system_prompt',
         content: ''
       }),
       mk({ name: 'Scenario', role: 'system', marker: true, markerType: 'scenario', content: '' }),

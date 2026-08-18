@@ -146,6 +146,8 @@ export interface WorkspaceSettings {
   magicAutoStart: boolean
   /** Editable system prompt that breaks a chapter outline into Magic Complete beats. */
   magicBeatPrompt: string
+  /** When on, applying a suggested outline also seeds the chapter's Magic Complete beats from it. */
+  outlineToBeats: boolean
   /** Named model configs; `activeModelPresetId` selects the one used for generation. */
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
@@ -518,6 +520,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   openrouter: { ...DEFAULT_OPENROUTER },
   magicAutoStart: true,
   magicBeatPrompt: DEFAULT_MAGIC_BEAT_PROMPT,
+  outlineToBeats: false,
   modelPresets: [{ ...DEFAULT_MODEL_PRESET, generation: { ...DEFAULT_GENERATION } }],
   activeModelPresetId: 'default'
 }
@@ -609,6 +612,7 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
       typeof r.magicBeatPrompt === 'string' && r.magicBeatPrompt.trim()
         ? r.magicBeatPrompt
         : DEFAULT_MAGIC_BEAT_PROMPT,
+    outlineToBeats: typeof r.outlineToBeats === 'boolean' ? r.outlineToBeats : false,
     modelPresets,
     activeModelPresetId
   }

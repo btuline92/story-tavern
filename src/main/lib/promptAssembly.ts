@@ -139,6 +139,8 @@ function expandMarker(markerType: MarkerType, ctx: AssemblyContext): PromptEntry
       return combineCharField(ctx, (c) => c.description, 'Character description')
     case 'char_personality':
       return combineCharField(ctx, (c) => c.personality, 'Character personality')
+    case 'char_system_prompt':
+      return combineCharField(ctx, (c) => c.system_prompt, 'Character instructions')
     case 'scenario':
       return combineCharField(ctx, (c) => c.scenario, 'Scenario')
     case 'dialogue_examples':
@@ -220,7 +222,10 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
       }
     : null
   let lorePushed = false
-  const pushLoreThenSummary = (): void => {
+
+  // Pushes world-info lore then the running summary, right before the manuscript. (The character's
+  // own `system_prompt` is an orderable preset marker — `char_system_prompt` — not injected here.)
+  const pushPreManuscript = (): void => {
     if (loreEntry && !lorePushed) {
       entries.push(loreEntry)
       lorePushed = true
@@ -236,7 +241,7 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
     if (block.marker) {
       if (block.markerType === 'manuscript') {
         manuscriptSeen = true
-        pushLoreThenSummary()
+        pushPreManuscript()
       }
       const entry = block.markerType ? expandMarker(block.markerType, ctx) : null
       if (entry) entries.push(entry)
@@ -247,7 +252,7 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
   }
   // If the preset has no manuscript marker, the model still needs the lore + summary + prose to continue.
   if (!manuscriptSeen) {
-    pushLoreThenSummary()
+    pushPreManuscript()
     const ms = manuscriptText(ctx)
     if (ms)
       entries.push({ role: 'user', content: `--- MANUSCRIPT ---\n${ms}\n--- END MANUSCRIPT ---` })
@@ -270,6 +275,13 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
     const content = interpolate(plugin, ctx).trim()
     if (content) entries.push({ role: 'system', content })
   }
+  // Character post-history instructions: high-recency per-character directives, alongside plugins.
+  const charPostHistoryEntry = combineCharField(
+    ctx,
+    (c) => c.post_history_instructions,
+    'Final character instructions'
+  )
+  if (charPostHistoryEntry) entries.push(charPostHistoryEntry)
   // Lorebook "at depth" entries: no true chat depth here, so inject near the end for recency, honoring
   // each entry's role (0 system, 1 user, 2 assistant).
   for (const e of loreAtDepth) {

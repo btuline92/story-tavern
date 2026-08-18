@@ -24,6 +24,7 @@ export function MagicCompleteSettings(): React.JSX.Element | null {
   const settings = useSettings((s) => s.settings)
   const setMagicAutoStart = useSettings((s) => s.setMagicAutoStart)
   const setMagicBeatPrompt = useSettings((s) => s.setMagicBeatPrompt)
+  const setOutlineToBeats = useSettings((s) => s.setOutlineToBeats)
 
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -67,6 +68,22 @@ export function MagicCompleteSettings(): React.JSX.Element | null {
             On: Magic Complete plans the chapter&apos;s beats and writes them straight through. Off: it
             plans the beats and stops at 0/N so you can review, edit, and reorder them first — then press
             Resume to write.
+          </div>
+        </div>
+      </label>
+
+      <label className="flex items-start gap-3 cursor-pointer mb-4">
+        <input
+          type="checkbox"
+          checked={settings.outlineToBeats}
+          onChange={(e) => setOutlineToBeats(workspace, e.target.checked)}
+          className="mt-1 h-4 w-4 shrink-0 accent-accent-500"
+        />
+        <div>
+          <div className="text-sm font-medium text-ink-900">Outline → beats</div>
+          <div className="text-sm text-ink-700 mt-1">
+            When you apply a suggested outline, also seed this chapter&apos;s Magic Complete beats from
+            it (each numbered item becomes a beat), so you can Resume writing without re-planning.
           </div>
         </div>
       </label>

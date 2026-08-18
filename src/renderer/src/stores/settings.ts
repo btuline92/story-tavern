@@ -20,6 +20,7 @@ interface SettingsState {
   setOpenRouter: (workspace: string, patch: Partial<OpenRouterSettings>) => Promise<void>
   setMagicAutoStart: (workspace: string, value: boolean) => Promise<void>
   setMagicBeatPrompt: (workspace: string, value: string) => Promise<void>
+  setOutlineToBeats: (workspace: string, value: boolean) => Promise<void>
   /** Set the model preset used for generation (used by the story-editor switcher). */
   setActiveModelPreset: (workspace: string, id: string) => Promise<void>
   /** Patch the active model preset in place (used by the story-editor model picker). */
@@ -104,6 +105,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
     const current = get().settings
     if (!current) return
     await persist(workspace, set, { ...current, magicBeatPrompt: value })
+  },
+  setOutlineToBeats: async (workspace, value) => {
+    const current = get().settings
+    if (!current) return
+    await persist(workspace, set, { ...current, outlineToBeats: value })
   },
   setActiveModelPreset: async (workspace, id) => {
     const current = get().settings

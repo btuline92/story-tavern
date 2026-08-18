@@ -8,12 +8,19 @@ import type { BlockRole, MarkerType, Preset, PromptBlock } from '../types'
 const MARKER_LABELS: Record<MarkerType, string> = {
   char_description: 'Character description',
   char_personality: 'Character personality',
+  char_system_prompt: 'Character instructions (card system prompt)',
   scenario: 'Scenario',
   dialogue_examples: 'Dialogue examples',
   story_premise: 'Story premise',
   manuscript: 'Manuscript (story so far)',
   unsupported: 'Unsupported (ignored)'
 }
+
+// Marker types offered in the block "content source" picker (unsupported is only kept for round-trip).
+const MARKER_TYPE_OPTIONS = (Object.keys(MARKER_LABELS) as MarkerType[]).filter(
+  (m) => m !== 'unsupported'
+)
+const TEXT_SOURCE = '__text__'
 
 const ROLE_COLORS: Record<BlockRole, string> = {
   system: 'bg-ink-100 text-ink-700',
@@ -87,6 +94,14 @@ function BlockRow({
           >
             ↓
           </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="px-1 text-ink-700 hover:text-danger"
+            title="Delete this block"
+          >
+            ✕
+          </button>
         </div>
       </div>
       {expanded && (
@@ -108,13 +123,28 @@ function BlockRow({
               <option value="user">user</option>
               <option value="assistant">assistant</option>
             </select>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="rounded-md border border-ink-200 px-2 py-1 text-xs text-ink-700 hover:bg-ink-100"
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-ink-700">Content source</span>
+            <select
+              value={block.marker ? (block.markerType ?? 'unsupported') : TEXT_SOURCE}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === TEXT_SOURCE) onChange({ marker: false, markerType: null })
+                else onChange({ marker: true, markerType: v as MarkerType, content: '' })
+              }}
+              className="rounded-md border border-ink-200 px-2 py-1 text-sm bg-surface"
             >
-              Delete
-            </button>
+              <option value={TEXT_SOURCE}>Custom text</option>
+              {MARKER_TYPE_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {MARKER_LABELS[m]}
+                </option>
+              ))}
+              {block.marker && block.markerType === 'unsupported' && (
+                <option value="unsupported">{MARKER_LABELS.unsupported}</option>
+              )}
+            </select>
           </div>
           {block.marker ? (
             <div className="rounded-md border border-warning/30 bg-warning/15 px-3 py-2 text-xs text-warning">

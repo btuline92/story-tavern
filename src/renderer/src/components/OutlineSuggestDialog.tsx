@@ -6,8 +6,8 @@ interface Props {
   storyId: string
   chapterNumber: number
   onClose: () => void
-  /** Apply the chosen outline text to the chapter's outline field. */
-  onApply: (outlineText: string) => void
+  /** Apply the chosen outline. `beats` is the raw beat list (for optionally seeding Magic Complete). */
+  onApply: (outlineText: string, beats: string[]) => void
 }
 
 /** Format an outline's beats as a numbered, one-per-line block for the outline textarea. */
@@ -169,7 +169,7 @@ export function OutlineSuggestDialog({
                     <button
                       type="button"
                       onClick={() => {
-                        onApply(formatOutline(beats))
+                        onApply(formatOutline(beats), beats)
                         onClose()
                       }}
                       className="rounded-md bg-accent-500 px-3 py-1 text-xs font-medium text-white hover:bg-accent-600"
