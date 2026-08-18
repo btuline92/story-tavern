@@ -191,7 +191,11 @@ function PresetEditor({
     }
   }, [preset.id, preset])
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(preset)
+  // Compare only editable content — NOT created_at/updated_at, which savePreset bumps on every save
+  // (otherwise the button would never return to "Saved" after a successful save).
+  const dirty =
+    draft.name !== preset.name ||
+    JSON.stringify(draft.blocks) !== JSON.stringify(preset.blocks)
   const isActive = settings?.activePresetId === preset.id
 
   const updateBlock = (id: string, patch: Partial<PromptBlock>): void => {

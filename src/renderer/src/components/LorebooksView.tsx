@@ -86,7 +86,11 @@ export function LorebooksView(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
 
-  const dirty = !!selected && !!draft && JSON.stringify(draft) !== JSON.stringify(selected)
+  // Ignore created_at/updated_at — saveLorebook bumps updated_at, so comparing them would leave the
+  // button permanently "dirty" after a successful save.
+  const stamplessJson = (lb: Lorebook): string =>
+    JSON.stringify({ ...lb, created_at: '', updated_at: '' })
+  const dirty = !!selected && !!draft && stamplessJson(draft) !== stamplessJson(selected)
 
   const onNew = async (): Promise<void> => {
     await create(workspace, 'New lorebook')
