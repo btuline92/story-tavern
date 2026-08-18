@@ -25,16 +25,18 @@ export function OutlineSuggestDialog({
 }: Props): React.JSX.Element | null {
   const [guidance, setGuidance] = useState('')
   const [beatCount, setBeatCount] = useState(8)
+  const [outlineCount, setOutlineCount] = useState(4)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [outlines, setOutlines] = useState<string[][]>([])
 
   useEffect(() => {
     if (open) {
-      // Reset all dialog state each time it opens (beat count reverts to the default of 8).
+      // Reset all dialog state each time it opens (counts revert to defaults: 8 beats, 4 outlines).
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setGuidance('')
       setBeatCount(8)
+      setOutlineCount(4)
       setError(null)
       setOutlines([])
       setLoading(false)
@@ -52,7 +54,8 @@ export function OutlineSuggestDialog({
         storyId,
         chapterNumber,
         guidance.trim() || undefined,
-        beatCount
+        beatCount,
+        outlineCount
       )
       if ('error' in result) {
         setError(result.error)
@@ -76,8 +79,8 @@ export function OutlineSuggestDialog({
         <div className="border-b border-ink-200 px-6 py-4">
           <h3 className="text-xl font-semibold text-ink-900">Suggest chapter outline</h3>
           <p className="mt-1 text-sm text-ink-700">
-            Generates four possible outlines, each about {beatCount} beats. Pick one to fill the
-            chapter outline — you can edit it afterward.
+            Generates {outlineCount} possible {outlineCount === 1 ? 'outline' : 'outlines'}, each about{' '}
+            {beatCount} beats. Pick one to fill the chapter outline — you can edit it afterward.
           </p>
         </div>
 
@@ -107,6 +110,22 @@ export function OutlineSuggestDialog({
                   : '✨ Generate outlines'}
             </button>
             <label className="flex items-center gap-2 text-xs text-ink-700">
+              Outlines
+              <input
+                type="number"
+                value={outlineCount}
+                min={1}
+                max={6}
+                step={1}
+                disabled={loading}
+                onChange={(e) =>
+                  setOutlineCount(Math.min(6, Math.max(1, Math.round(Number(e.target.value) || 4))))
+                }
+                title="How many candidate outlines to generate (fewer is faster)"
+                className="w-16 rounded-md border border-ink-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-50"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-ink-700">
               Beats per outline
               <input
                 type="number"
@@ -124,7 +143,7 @@ export function OutlineSuggestDialog({
             {loading && (
               <span className="flex items-center gap-2 text-xs text-accent-600">
                 <span className="inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse" />
-                Thinking up four directions…
+                Thinking up {outlineCount === 1 ? 'a direction' : `${outlineCount} directions`}…
               </span>
             )}
           </div>
@@ -135,8 +154,8 @@ export function OutlineSuggestDialog({
           {outlines.length === 0 ? (
             <div className="flex h-40 items-center justify-center text-center text-sm text-ink-700">
               {loading
-                ? 'Generating four candidate outlines…'
-                : 'Press Generate to get four candidate outlines.'}
+                ? `Generating ${outlineCount} candidate ${outlineCount === 1 ? 'outline' : 'outlines'}…`
+                : `Press Generate to get ${outlineCount} candidate ${outlineCount === 1 ? 'outline' : 'outlines'}.`}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

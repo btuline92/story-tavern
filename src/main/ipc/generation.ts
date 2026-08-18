@@ -183,15 +183,16 @@ function buildBeatPlanEntries(args: {
 /** Default number of beats per suggested chapter outline (configurable per request). */
 const OUTLINE_BEATS = 8
 
-/** Build the prompt that asks the model for four distinct candidate outlines for the next chapter. */
+/** Build the prompt that asks the model for `count` distinct candidate outlines for the next chapter. */
 function buildOutlineSuggestEntries(args: {
   story: StoryWithChapters
   chapter: Chapter
   characters: TavernV2Data[]
   guidance: string
   beats: number
+  count: number
 }): PromptEntry[] {
-  const { story, chapter, characters, guidance, beats } = args
+  const { story, chapter, characters, guidance, beats, count } = args
   const charLines = characters
     .map((c) => {
       const name = c.name?.trim() || 'Character'
@@ -214,20 +215,23 @@ function buildOutlineSuggestEntries(args: {
     }
   }
 
+  const many = count > 1
   const system: PromptEntry = {
     role: 'system',
     content:
       'You are a story-planning assistant. You propose possible outlines for a chapter of a story.\n\n' +
-      'Generate FOUR distinct candidate outlines. Requirements:\n' +
+      `Generate ${count} distinct candidate outline${many ? 's' : ''}. Requirements:\n` +
       `- Each outline is exactly ${beats} story beats, one concise sentence per beat.\n` +
       '- A beat is one step of the chapter — an action, turn, revelation, or emotional shift.\n' +
       '- NSFW Content is allowed.\n' +
-      '- The four outlines must be meaningfully different from one another: different directions, pacing, ' +
-      'or emphasis — not four rewordings of the same plot.\n' +
-      '- All four must be consistent with the premise, the characters, and everything in earlier chapters.\n' +
-      `- Respond with ONLY a JSON array of 4 arrays, each inner array containing exactly ${beats} short ` +
-      'beat strings. No prose, no keys, no markdown fences. ' +
-      'Example: [["…","…"],["…","…"],["…","…"],["…","…"]]'
+      (many
+        ? '- The outlines must be meaningfully different from one another: different directions, pacing, ' +
+          'or emphasis — not rewordings of the same plot.\n'
+        : '') +
+      `- Each outline must be consistent with the premise, the characters, and everything in earlier chapters.\n` +
+      `- Respond with ONLY a JSON array of ${count} array${many ? 's' : ''}, each inner array containing ` +
+      `exactly ${beats} short beat strings. No prose, no keys, no markdown fences. ` +
+      'Example: [["…","…"],["…","…"]]'
   }
 
   const parts: string[] = [`Story title: ${story.meta.title || 'Untitled'}`]
@@ -250,8 +254,8 @@ function buildOutlineSuggestEntries(args: {
   return [system, { role: 'user', content: parts.join('\n\n') }]
 }
 
-/** Parse four candidate outlines (each an array of beat strings) from the model's JSON response. */
-function parseOutlines(text: string, maxBeats: number): string[][] {
+/** Parse candidate outlines (each an array of beat strings) from the model's JSON response. */
+function parseOutlines(text: string, maxBeats: number, maxOutlines: number): string[][] {
   const t = (text ?? '').trim()
   const start = t.indexOf('[')
   const end = t.lastIndexOf(']')
@@ -283,7 +287,7 @@ function parseOutlines(text: string, maxBeats: number): string[][] {
     }
     if (beats.length) outlines.push(beats.slice(0, maxBeats))
   }
-  return outlines.slice(0, 4)
+  return outlines.slice(0, maxOutlines)
 }
 
 /** Parse the model's beat list — JSON array preferred, numbered/bulleted lines as a fallback. */
@@ -626,7 +630,8 @@ export function registerGenerationIpc(): void {
       storyId: string,
       chapterNumber: number,
       guidance?: string,
-      beatCount?: number
+      beatCount?: number,
+      outlineCount?: number
     ): Promise<{ outlines: string[][] } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
       const { provider, model, generation } = resolveActiveModel(settings)
@@ -638,15 +643,17 @@ export function registerGenerationIpc(): void {
       const chapter = story.chapters.find((c) => c.number === chapterNumber)
       if (!chapter) return { error: `Chapter ${chapterNumber} not found` }
 
-      // Clamp the requested beat count to a sane range; default to OUTLINE_BEATS.
+      // Clamp the requested counts to sane ranges; default to OUTLINE_BEATS beats and 4 outlines.
       const beats = Math.min(20, Math.max(1, Math.round(beatCount ?? OUTLINE_BEATS)))
+      const count = Math.min(6, Math.max(1, Math.round(outlineCount ?? 4)))
       const characters = await readCharactersData(workspace, story.meta.character_ids)
       const entries = buildOutlineSuggestEntries({
         story,
         chapter,
         characters,
         guidance: guidance ?? '',
-        beats
+        beats,
+        count
       })
 
       const ctrl = new AbortController()
@@ -691,7 +698,7 @@ export function registerGenerationIpc(): void {
         return { error: `Outline suggestion failed: ${genError ?? metrics.error}` }
       }
 
-      const outlines = parseOutlines(metrics.fullText, beats + 4)
+      const outlines = parseOutlines(metrics.fullText, beats + 4, count)
       if (outlines.length === 0) return { error: 'The model returned no usable outlines.' }
       return { outlines }
     }

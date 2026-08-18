@@ -518,7 +518,8 @@ const api = {
       storyId: string,
       chapterNumber: number,
       guidance?: string,
-      beatCount?: number
+      beatCount?: number,
+      outlineCount?: number
     ): Promise<{ outlines: string[][] } | { error: string }> =>
       ipcRenderer.invoke(
         'generation:suggest-outlines',
@@ -526,7 +527,8 @@ const api = {
         storyId,
         chapterNumber,
         guidance,
-        beatCount
+        beatCount,
+        outlineCount
       ),
     createCharacter: (
       workspace: string,
