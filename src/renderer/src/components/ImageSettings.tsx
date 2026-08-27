@@ -712,6 +712,7 @@ export function ImageSettingsPanel(): React.JSX.Element {
                 value={draft.tagModelOverride.model}
                 hasKey={hasKey[draft.tagModelOverride.provider]}
                 onChange={(model) => set('tagModelOverride', { ...draft.tagModelOverride, model })}
+                liveCommit
               />
             </div>
           )}

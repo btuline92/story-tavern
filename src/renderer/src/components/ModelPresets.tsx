@@ -222,6 +222,7 @@ export function ModelPresetsPanel(): React.JSX.Element {
             value={editing.model}
             hasKey={hasKey[editing.provider]}
             onChange={(model) => updateEditing({ model })}
+            liveCommit
           />
         </div>
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">

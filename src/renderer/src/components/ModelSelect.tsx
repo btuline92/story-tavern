@@ -7,6 +7,13 @@ interface Props {
   value: string
   hasKey: boolean
   onChange: (model: string) => void
+  /**
+   * Report typed changes on every keystroke instead of only on blur. Use this in editors that hold a
+   * local draft with an explicit Save button — otherwise a typed model id isn't reported until a
+   * 100ms-delayed blur, so clicking Save immediately after typing saves the OLD value (the change
+   * appears not to "take"). Leave off for pickers that persist immediately, to avoid a write per key.
+   */
+  liveCommit?: boolean
 }
 
 function rankMatch(query: string, candidate: string): number {
@@ -20,7 +27,13 @@ function rankMatch(query: string, candidate: string): number {
   return -1
 }
 
-export function ModelSelect({ provider, value, hasKey, onChange }: Props): React.JSX.Element {
+export function ModelSelect({
+  provider,
+  value,
+  hasKey,
+  onChange,
+  liveCommit = false
+}: Props): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)
   const [models, setModels] = useState<ModelInfo[]>([])
   const [loading, setLoading] = useState(false)
@@ -111,6 +124,8 @@ export function ModelSelect({ provider, value, hasKey, onChange }: Props): React
   }
 
   const onBlur = (): void => {
+    // liveCommit already reports every keystroke, so there's nothing pending to flush on blur.
+    if (liveCommit) return
     // Commit free-form text if user has typed something different and dropdown is closed
     setTimeout(() => {
       if (!open && query !== value) onChange(query)
@@ -124,9 +139,11 @@ export function ModelSelect({ provider, value, hasKey, onChange }: Props): React
           type="text"
           value={query}
           onChange={(e) => {
-            setQuery(e.target.value)
+            const v = e.target.value
+            setQuery(v)
             setOpen(true)
             setHighlightIdx(0)
+            if (liveCommit) onChange(v)
           }}
           onFocus={() => setOpen(true)}
           onBlur={onBlur}

@@ -194,6 +194,7 @@ export function SummarizerPanel(): React.JSX.Element {
                   value={draft.modelOverride.model}
                   hasKey={hasKey[draft.modelOverride.provider]}
                   onChange={(model) => set('modelOverride', { ...draft.modelOverride, model })}
+                  liveCommit
                 />
               </div>
               <div>
