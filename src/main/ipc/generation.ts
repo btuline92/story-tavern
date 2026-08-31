@@ -151,8 +151,9 @@ function buildBeatPlanEntries(args: {
   outline: string
   characters: TavernV2Data[]
   systemPrompt: string
+  plugins: string[]
 }): PromptEntry[] {
-  const { story, chapter, outline, characters, systemPrompt } = args
+  const { story, chapter, outline, characters, systemPrompt, plugins } = args
   const charLines = characters
     .map((c) => {
       const name = c.name?.trim() || 'Character'
@@ -163,12 +164,30 @@ function buildBeatPlanEntries(args: {
   const priorProse = stripImageMarkers(chapter.content).trim()
   const tail = priorProse.slice(-1200)
 
+  // Story style/tone plugins carry the same {{char}}/{{user}} macros as the writing prompt.
+  const charNames =
+    characters
+      .map((c) => c.name?.trim())
+      .filter((n): n is string => !!n)
+      .join(' and ') || 'the character'
+  const pluginText = plugins
+    .map((p) => p.replace(/\{\{char\}\}/g, charNames).replace(/\{\{user\}\}/g, 'the protagonist').trim())
+    .filter(Boolean)
+    .join('\n\n')
+
   // The system prompt is an editable workspace setting (settings.magicBeatPrompt); default in workspace.ts.
   const system: PromptEntry = { role: 'system', content: systemPrompt }
 
   const parts: string[] = [`Story title: ${story.meta.title || 'Untitled'}`]
   if (story.meta.premise?.trim()) parts.push(`Premise:\n${story.meta.premise.trim()}`)
   if (charLines) parts.push(`Characters:\n${charLines}`)
+  if (pluginText) {
+    parts.push(
+      "Style & tone guidance for this story — shape the beats' mood, themes, and pacing to match this. " +
+        '(The beats themselves stay plain one-sentence descriptions, not prose.)\n' +
+        pluginText
+    )
+  }
   parts.push(`Chapter: ${chapter.title || `Chapter ${chapter.number}`}`)
   parts.push(`Outline to break into beats:\n${outline}`)
   if (tail) {
@@ -191,8 +210,21 @@ function buildOutlineSuggestEntries(args: {
   guidance: string
   beats: number
   count: number
+  plugins: string[]
 }): PromptEntry[] {
-  const { story, chapter, characters, guidance, beats, count } = args
+  const { story, chapter, characters, guidance, beats, count, plugins } = args
+  // Story style/tone plugins carry the same {{char}}/{{user}} macros as the writing prompt.
+  const charNames =
+    characters
+      .map((c) => c.name?.trim())
+      .filter((n): n is string => !!n)
+      .join(' and ') || 'the character'
+  const interp = (s: string): string =>
+    s.replace(/\{\{char\}\}/g, charNames).replace(/\{\{user\}\}/g, 'the protagonist')
+  const pluginText = plugins
+    .map((p) => interp(p).trim())
+    .filter(Boolean)
+    .join('\n\n')
   const charLines = characters
     .map((c) => {
       const name = c.name?.trim() || 'Character'
@@ -238,6 +270,13 @@ function buildOutlineSuggestEntries(args: {
   if (story.meta.premise?.trim()) parts.push(`Premise:\n${story.meta.premise.trim()}`)
   if (charLines) parts.push(`Characters:\n${charLines}`)
   if (priorLines.length) parts.push(`Earlier chapters so far:\n${priorLines.join('\n')}`)
+  if (pluginText) {
+    parts.push(
+      "Style & tone guidance for this story — shape the outlines' mood, themes, and pacing to match " +
+        'this. (The beats themselves stay plain one-sentence descriptions, not prose.)\n' +
+        pluginText
+    )
+  }
   parts.push(
     `Propose outlines for: ${chapter.title || `Chapter ${chapter.number}`} (chapter ${chapter.number}).`
   )
@@ -566,12 +605,14 @@ export function registerGenerationIpc(): void {
       }
 
       const characters = await readCharactersData(workspace, story.meta.character_ids)
+      const activePlugins = await getPluginsByIds(workspace, story.meta.plugin_ids)
       const entries = buildBeatPlanEntries({
         story,
         chapter,
         outline,
         characters,
-        systemPrompt: settings.magicBeatPrompt
+        systemPrompt: settings.magicBeatPrompt,
+        plugins: activePlugins.map((p) => p.content)
       })
 
       const ctrl = new AbortController()
@@ -647,13 +688,15 @@ export function registerGenerationIpc(): void {
       const beats = Math.min(20, Math.max(1, Math.round(beatCount ?? OUTLINE_BEATS)))
       const count = Math.min(6, Math.max(1, Math.round(outlineCount ?? 4)))
       const characters = await readCharactersData(workspace, story.meta.character_ids)
+      const activePlugins = await getPluginsByIds(workspace, story.meta.plugin_ids)
       const entries = buildOutlineSuggestEntries({
         story,
         chapter,
         characters,
         guidance: guidance ?? '',
         beats,
-        count
+        count,
+        plugins: activePlugins.map((p) => p.content)
       })
 
       const ctrl = new AbortController()
