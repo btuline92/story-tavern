@@ -43,6 +43,20 @@ function wordCount(s: string): number {
   return (s.trim().match(/\S+/g) ?? []).length
 }
 
+/**
+ * Mechanically turn an outline into Magic Complete beats: every line that starts with a number (e.g.
+ * "1.", "2)", "3:") becomes a beat, in the original order. The number/marker is stripped and thrown
+ * away (duplicates or out-of-order numbers don't matter); lines without a leading number are ignored.
+ */
+function parseOutlineBeats(outline: string): string[] {
+  const beats: string[] = []
+  for (const line of outline.split(/\r?\n/)) {
+    const m = /^\s*\d+[.)\]:-]+\s*(\S.*?)\s*$/.exec(line)
+    if (m) beats.push(m[1].trim())
+  }
+  return beats
+}
+
 function ElapsedTimer({ since }: { since: number }): React.JSX.Element {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
@@ -300,6 +314,28 @@ function StoryEditor({
     await generateImage(workspace, chapter.number, proseTail())
   }
 
+  // Mechanically turn the numbered lines of the current outline into Magic Complete beats (no AI).
+  const onOutlineToBeats = async (): Promise<void> => {
+    if (!chapter) return
+    const beats = parseOutlineBeats(outlineDraft)
+    if (beats.length === 0) {
+      await showAlert(
+        'No numbered lines found in the outline. Number the lines you want as beats, e.g.\n\n' +
+          '1. They reach the docks at dusk\n2. The handoff goes wrong'
+      )
+      return
+    }
+    if (
+      magicTotal > 0 &&
+      !(await askConfirm(
+        `Replace this chapter's ${magicTotal} Magic Complete beat${magicTotal === 1 ? '' : 's'} ` +
+          `with ${beats.length} from the outline?`
+      ))
+    )
+      return
+    await updateChapter(workspace, chapter.number, { magic_beats: beats, magic_beats_done: 0 })
+  }
+
   // Resume/start writing from where the plan stopped — beats are already planned, prose is kept.
   const onResumeMagic = async (): Promise<void> => {
     if (!chapter) return
@@ -534,15 +570,26 @@ function StoryEditor({
                   (sent to the model — what should happen in this chapter)
                 </span>
               </label>
-              <button
-                type="button"
-                onClick={() => setOutlineDialogOpen(true)}
-                disabled={busy}
-                title="Have the LLM suggest four possible outlines for this chapter"
-                className="shrink-0 rounded-md border border-ink-200 bg-surface px-2 py-1 text-xs font-medium text-ink-900 hover:bg-ink-100 disabled:opacity-50"
-              >
-                ✨ Suggest outlines
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void onOutlineToBeats()}
+                  disabled={busy || !outlineDraft.trim()}
+                  title="Turn each numbered line of the outline into a Magic Complete beat (no AI)"
+                  className="rounded-md border border-ink-200 bg-surface px-2 py-1 text-xs font-medium text-ink-900 hover:bg-ink-100 disabled:opacity-50"
+                >
+                  ⇢ Outline to beats
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOutlineDialogOpen(true)}
+                  disabled={busy}
+                  title="Have the LLM suggest possible outlines for this chapter"
+                  className="rounded-md border border-ink-200 bg-surface px-2 py-1 text-xs font-medium text-ink-900 hover:bg-ink-100 disabled:opacity-50"
+                >
+                  ✨ Suggest outlines
+                </button>
+              </div>
             </div>
             <textarea
               value={outlineDraft}
