@@ -113,6 +113,8 @@ export interface ModelPreset {
   provider: ProviderId
   model: string
   generation: GenerationSettings
+  /** Free-form notes about this model (e.g. what it's good at). Display-only. */
+  notes: string
 }
 
 /** Rolling-summary settings. When enabled, the oldest unsummarized chapters are folded into a running
@@ -501,7 +503,8 @@ const DEFAULT_MODEL_PRESET: ModelPreset = {
   name: 'Default',
   provider: 'anthropic',
   model: defaultModelFor('anthropic'),
-  generation: { ...DEFAULT_GENERATION }
+  generation: { ...DEFAULT_GENERATION },
+  notes: ''
 }
 
 const DEFAULT_SETTINGS: WorkspaceSettings = {
@@ -575,7 +578,8 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
           name: p.name,
           provider: coerceProvider(p.provider),
           model: p.model,
-          generation: mergeGeneration(p.generation)
+          generation: mergeGeneration(p.generation),
+          notes: typeof p.notes === 'string' ? p.notes : ''
         }))
     : []
   if (modelPresets.length === 0) {
@@ -586,7 +590,8 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
         name: 'Default',
         provider: seedProvider,
         model: models[seedProvider] || defaultModelFor(seedProvider),
-        generation
+        generation,
+        notes: ''
       }
     ]
   }

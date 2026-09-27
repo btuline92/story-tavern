@@ -84,7 +84,8 @@ export function ModelPresetsPanel(): React.JSX.Element {
       ),
       provider: editing.provider,
       model: editing.model,
-      generation: { ...editing.generation }
+      generation: { ...editing.generation },
+      notes: ''
     }
     setDraft({ ...draft, modelPresets: [...draft.modelPresets, preset] })
     setEditingId(preset.id)
@@ -223,6 +224,18 @@ export function ModelPresetsPanel(): React.JSX.Element {
             hasKey={hasKey[editing.provider]}
             onChange={(model) => updateEditing({ model })}
             liveCommit
+          />
+        </div>
+        <div className="mb-4">
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-700">
+            Notes
+          </label>
+          <textarea
+            value={editing.notes}
+            onChange={(e) => updateEditing({ notes: e.target.value })}
+            rows={3}
+            placeholder="What is this model good at? e.g. great prose, weak at long plots; cheap for drafts…"
+            className="st-textarea w-full resize-y"
           />
         </div>
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">

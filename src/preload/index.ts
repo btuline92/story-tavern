@@ -93,6 +93,7 @@ export interface ModelPreset {
   provider: ProviderId
   model: string
   generation: GenerationSettings
+  notes: string
 }
 
 export interface WorkspaceSettings {
