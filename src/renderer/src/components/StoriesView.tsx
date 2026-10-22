@@ -6,6 +6,8 @@ import { useWorkspace } from '../stores/workspace'
 import { askChoice, askConfirm, showAlert } from '../stores/dialog'
 import { EMPTY_STORY_FILTER, filterStories, isStoryFilterActive } from '../lib/storyFilter'
 import { NewStoryDialog } from './NewStoryDialog'
+import { DuplicateStoryDialog } from './DuplicateStoryDialog'
+import type { StoryMeta } from '../types'
 import { StoryDetailsPanel } from './StoryDetailsPanel'
 import { StoryReader } from './StoryReader'
 import { ChapterDocument } from './ChapterDocument'
@@ -304,7 +306,12 @@ function StoryEditor({
     if (clearContent) setContentDraft('')
     await updateChapter(workspace, chapter.number, {
       ...(clearContent ? { content: '' } : {}),
-      ...(clearBeats ? { magic_beats: [], magic_beats_done: 0 } : {})
+      // Kept beats lose their written prose, so their progress resets to 0/N.
+      ...(clearBeats
+        ? { magic_beats: [], magic_beats_done: 0 }
+        : clearContent && hasBeats
+          ? { magic_beats_done: 0 }
+          : {})
     })
   }
 
@@ -877,6 +884,8 @@ export function StoriesView(): React.JSX.Element {
   const { stories, selectedId, active, loadList, open, closeActive, remove } = useStories()
   const { characters, load: loadChars } = useCharacters()
   const [dialogOpen, setDialogOpen] = useState(false)
+  // The story whose Duplicate dialog is open (null = closed).
+  const [duplicating, setDuplicating] = useState<StoryMeta | null>(null)
   // Filter the story list to stories whose cast includes this character id ('' = all).
   const [castFilter, setCastFilter] = useState('')
   // Name/tag search + selected tag chips.
@@ -1135,22 +1144,32 @@ export function StoriesView(): React.JSX.Element {
                       >
                         ×
                       </button>
-                      {chapters > 0 && (
+                      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                         <button
                           type="button"
-                          title="Read this story"
-                          onClick={async () => {
-                            // Open loads the story (chapters + active chapter); then drop straight into
-                            // the reader for it. Keyed state means no race with the open.
-                            setReaderFromList(true)
-                            await open(workspace, s.id)
-                            setReadingStoryId(s.id)
-                          }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-accent-500 px-3 py-1.5 text-xs font-medium text-white shadow opacity-0 transition hover:bg-accent-600 group-hover:opacity-100 focus:opacity-100"
+                          title="Duplicate this story"
+                          onClick={() => setDuplicating(s)}
+                          className="rounded-md border border-ink-200 bg-surface px-3 py-1.5 text-xs font-medium text-ink-900 shadow hover:bg-ink-100"
                         >
-                          📖 Read
+                          ⧉ Duplicate
                         </button>
-                      )}
+                        {chapters > 0 && (
+                          <button
+                            type="button"
+                            title="Read this story"
+                            onClick={async () => {
+                              // Open loads the story (chapters + active chapter); then drop straight into
+                              // the reader for it. Keyed state means no race with the open.
+                              setReaderFromList(true)
+                              await open(workspace, s.id)
+                              setReadingStoryId(s.id)
+                            }}
+                            className="rounded-md bg-accent-500 px-3 py-1.5 text-xs font-medium text-white shadow hover:bg-accent-600"
+                          >
+                            📖 Read
+                          </button>
+                        )}
+                      </div>
                     </li>
                   )
                 })}
@@ -1197,6 +1216,15 @@ export function StoriesView(): React.JSX.Element {
         </div>
       </div>
       <NewStoryDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      <DuplicateStoryDialog
+        story={duplicating}
+        onClose={() => setDuplicating(null)}
+        onDuplicate={async (opts) => {
+          if (!duplicating) return
+          await window.api.stories.duplicate(workspace, duplicating.id, opts)
+          await loadList(workspace)
+        }}
+      />
     </>
   )
 }

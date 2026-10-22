@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ulid } from 'ulid'
 import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
@@ -483,4 +483,107 @@ export async function deleteChapter(
   if (through !== null && chapterNumber <= through) {
     await updateStoryMeta(workspace, storyId, { summary: '', summaryThroughChapter: null })
   }
+}
+
+/** What to carry over when duplicating a story. Options that depend on another (e.g. content needs
+ *  chapters) are ignored server-side if their prerequisite is off, regardless of what the UI sent. */
+export interface DuplicateStoryOptions {
+  title: string
+  characters: boolean
+  plugins: boolean
+  lorebooks: boolean
+  preset: boolean
+  premise: boolean
+  /** Description blurb + tags. */
+  details: boolean
+  /** Chapter structure (titles + outlines). Off = the copy starts with one empty chapter. */
+  chapters: boolean
+  /** Only copy the first chapter (requires `chapters`). */
+  firstChapterOnly: boolean
+  /** Chapter prose + inline images (requires `chapters`). */
+  content: boolean
+  /** Magic Complete beats (requires `chapters`). */
+  beats: boolean
+  /** Running summary (requires all chapters with their content, or it would describe missing text). */
+  summary: boolean
+}
+
+export async function duplicateStory(
+  workspace: string,
+  id: string,
+  opts: DuplicateStoryOptions
+): Promise<StoryWithChapters> {
+  const source = await loadStory(workspace, id)
+  if (!source) throw new Error(`Story not found: ${id}`)
+  const src = source.meta
+  const copyChapters = opts.chapters
+  const firstOnly = copyChapters && opts.firstChapterOnly
+  const copyContent = copyChapters && opts.content
+  const copyBeats = copyChapters && opts.beats
+  const copySummary = copyChapters && copyContent && !firstOnly && opts.summary
+
+  const title = opts.title.trim() || `${src.title} (copy)`
+  const slug = await uniqueStorySlug(workspace, slugify(title))
+  const now = new Date().toISOString()
+  const meta: StoryMeta = withDefaults({
+    id: ulid(),
+    slug,
+    title,
+    description: opts.details ? src.description : '',
+    tags: opts.details ? [...src.tags] : [],
+    character_ids: opts.characters ? [...src.character_ids] : [],
+    preset_id: opts.preset ? src.preset_id : null,
+    plugin_ids: opts.plugins ? [...src.plugin_ids] : [],
+    lorebook_ids: opts.lorebooks ? [...src.lorebook_ids] : [],
+    premise: opts.premise ? src.premise : '',
+    notes: '',
+    summary: copySummary ? src.summary : '',
+    summary_through_chapter: copySummary ? src.summary_through_chapter : null,
+    created_at: now,
+    updated_at: now
+  })
+  await writeStoryMeta(workspace, meta)
+
+  const sourceChapters = [...source.chapters].sort((a, b) => a.number - b.number)
+  const picked = !copyChapters ? [] : firstOnly ? sourceChapters.slice(0, 1) : sourceChapters
+  const chapters: Chapter[] =
+    picked.length > 0
+      ? picked.map((c, i) => ({
+          id: ulid(),
+          // Renumber from 1 so a first-only copy (or a story with gaps) starts cleanly.
+          number: i + 1,
+          title: c.title,
+          outline: c.outline,
+          content: copyContent ? c.content : '',
+          model_preset_id: c.model_preset_id,
+          magic_beats: copyBeats ? [...c.magic_beats] : [],
+          // Written-beat progress only means something alongside the prose it produced.
+          magic_beats_done: copyBeats && copyContent ? c.magic_beats_done : 0,
+          created_at: now,
+          updated_at: now
+        }))
+      : [
+          {
+            id: ulid(),
+            number: 1,
+            title: 'Chapter 1',
+            outline: '',
+            content: '',
+            model_preset_id: null,
+            magic_beats: [],
+            magic_beats_done: 0,
+            created_at: now,
+            updated_at: now
+          }
+        ]
+  for (const c of chapters) await writeChapter(workspace, slug, c)
+
+  // Inline image markers point at files inside the story folder — bring them along with the prose.
+  if (copyContent) {
+    const srcImages = join(storyDir(workspace, src.slug), 'images')
+    if (existsSync(srcImages)) {
+      await cp(srcImages, join(storyDir(workspace, slug), 'images'), { recursive: true })
+    }
+  }
+  return { meta, chapters }
 }

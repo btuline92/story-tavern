@@ -462,6 +462,25 @@ const api = {
         summaryThroughChapter?: number | null
       }
     ): Promise<StoryMeta> => ipcRenderer.invoke('stories:update-meta', workspace, id, patch),
+    duplicate: (
+      workspace: string,
+      id: string,
+      opts: {
+        title: string
+        characters: boolean
+        plugins: boolean
+        lorebooks: boolean
+        preset: boolean
+        premise: boolean
+        details: boolean
+        chapters: boolean
+        firstChapterOnly: boolean
+        content: boolean
+        beats: boolean
+        summary: boolean
+      }
+    ): Promise<StoryWithChapters> =>
+      ipcRenderer.invoke('stories:duplicate', workspace, id, opts),
     delete: (workspace: string, id: string): Promise<boolean> =>
       ipcRenderer.invoke('stories:delete', workspace, id),
     updateChapter: (

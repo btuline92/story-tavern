@@ -6,6 +6,8 @@ import {
   CreateStoryInput,
   deleteChapter,
   deleteStory,
+  duplicateStory,
+  DuplicateStoryOptions,
   listStoriesWithCounts,
   loadStory,
   StoryMetaUpdate,
@@ -24,6 +26,11 @@ export function registerStoriesIpc(): void {
     'stories:update-meta',
     (_e, workspace: string, id: string, patch: StoryMetaUpdate) =>
       updateStoryMeta(workspace, id, patch)
+  )
+  ipcMain.handle(
+    'stories:duplicate',
+    (_e, workspace: string, id: string, opts: DuplicateStoryOptions) =>
+      duplicateStory(workspace, id, opts)
   )
   ipcMain.handle('stories:delete', async (_e, workspace: string, id: string) => {
     await deleteStory(workspace, id)
