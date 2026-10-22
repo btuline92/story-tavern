@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { getKey } from '../lib/safeStore'
 import { logApiCall } from '../lib/apiLogger'
 
-export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek' | 'nanogpt'
+export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek' | 'nanogpt' | 'featherless'
 
 export interface TestConnectionResult {
   ok: boolean
@@ -19,7 +19,8 @@ const DEFAULT_MODELS: Record<ProviderId, string> = {
   openai: 'gpt-4o-mini',
   openrouter: 'openrouter/auto',
   deepseek: 'deepseek-chat',
-  nanogpt: 'gpt-4o-mini'
+  nanogpt: 'gpt-4o-mini',
+  featherless: 'meta-llama/Meta-Llama-3.1-8B-Instruct'
 }
 
 const ANTHROPIC_FALLBACK_MODELS: ModelInfo[] = [
@@ -229,6 +230,14 @@ async function listModels(
     case 'nanogpt':
       if (!key) throw new Error('NanoGPT requires an API key to list models')
       return listOpenAIStyleModels(workspace, 'nanogpt', 'https://nano-gpt.com/api/v1/models', key)
+    case 'featherless':
+      if (!key) throw new Error('Featherless requires an API key to list models')
+      return listOpenAIStyleModels(
+        workspace,
+        'featherless',
+        'https://api.featherless.ai/v1/models',
+        key
+      )
     default:
       throw new Error(`Unknown provider: ${String(provider)}`)
   }
@@ -288,6 +297,14 @@ export function registerProvidersIpc(): void {
             ws,
             'nanogpt',
             'https://nano-gpt.com/api/v1/chat/completions',
+            key,
+            m
+          )
+        case 'featherless':
+          return testOpenAICompat(
+            ws,
+            'featherless',
+            'https://api.featherless.ai/v1/chat/completions',
             key,
             m
           )

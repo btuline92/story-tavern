@@ -10,7 +10,8 @@ const PROVIDERS: { id: ProviderId; name: string }[] = [
   { id: 'openai', name: 'OpenAI' },
   { id: 'openrouter', name: 'OpenRouter' },
   { id: 'deepseek', name: 'DeepSeek' },
-  { id: 'nanogpt', name: 'NanoGPT' }
+  { id: 'nanogpt', name: 'NanoGPT' },
+  { id: 'featherless', name: 'Featherless' }
 ]
 
 function newId(): string {

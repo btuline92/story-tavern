@@ -139,7 +139,7 @@ function openAICompatRequest(
   url: string,
   req: StreamRequest,
   options: {
-    provider: 'openai' | 'openrouter' | 'deepseek' | 'nanogpt'
+    provider: 'openai' | 'openrouter' | 'deepseek' | 'nanogpt' | 'featherless'
     extraHeaders?: Record<string, string>
   }
 ): { url: string; init: RequestInit; body: string } {
@@ -355,6 +355,12 @@ export async function streamContinue(
     case 'nanogpt':
       prepared = openAICompatRequest('https://nano-gpt.com/api/v1/chat/completions', req, {
         provider: 'nanogpt'
+      })
+      consume = consumeOpenAIStream
+      break
+    case 'featherless':
+      prepared = openAICompatRequest('https://api.featherless.ai/v1/chat/completions', req, {
+        provider: 'featherless'
       })
       consume = consumeOpenAIStream
       break

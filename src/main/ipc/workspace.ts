@@ -514,7 +514,8 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
     openai: defaultModelFor('openai'),
     openrouter: defaultModelFor('openrouter'),
     deepseek: defaultModelFor('deepseek'),
-    nanogpt: defaultModelFor('nanogpt')
+    nanogpt: defaultModelFor('nanogpt'),
+    featherless: defaultModelFor('featherless')
   },
   activePresetId: null,
   generation: { ...DEFAULT_GENERATION },
@@ -533,7 +534,7 @@ function cloneModelPresets(presets: ModelPreset[]): ModelPreset[] {
   return presets.map((p) => ({ ...p, generation: { ...p.generation } }))
 }
 
-const PROVIDER_IDS: ProviderId[] = ['anthropic', 'openai', 'openrouter', 'deepseek', 'nanogpt']
+const PROVIDER_IDS: ProviderId[] = ['anthropic', 'openai', 'openrouter', 'deepseek', 'nanogpt', 'featherless']
 function coerceProvider(v: unknown): ProviderId {
   return PROVIDER_IDS.includes(v as ProviderId) ? (v as ProviderId) : 'anthropic'
 }

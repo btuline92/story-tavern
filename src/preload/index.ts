@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek' | 'nanogpt'
+export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'deepseek' | 'nanogpt' | 'featherless'
 export type ReasoningLevel = 'off' | 'low' | 'medium' | 'high'
 
 export interface GenerationSettings {

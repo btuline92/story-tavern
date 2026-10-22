@@ -37,7 +37,7 @@ A few things that make it different from a chat app:
 
 **Step 1 — Pick a workspace.** The first time you open the app, you choose (or create) a folder to be your **workspace**. This is where all your stories, characters, presets, and images are saved. You can switch to a different workspace later from **Settings**.
 
-**Step 2 — Connect an AI.** Go to the **Settings** tab → **Providers & API keys**. Pick the service you have an account with — **Anthropic, OpenAI, OpenRouter, DeepSeek,** or **NanoGPT** — paste in your API key, and click **Test connection**. A green check means you're ready. (An API key is a password-like string you get from that service's website; the app stores it securely on your machine and never shows it to anyone else.)
+**Step 2 — Connect an AI.** Go to the **Settings** tab → **Providers & API keys**. Pick the service you have an account with — **Anthropic, OpenAI, OpenRouter, DeepSeek, NanoGPT,** or **Featherless** — paste in your API key, and click **Test connection**. A green check means you're ready. (An API key is a password-like string you get from that service's website; the app stores it securely on your machine and never shows it to anyone else.)
 
 **Step 3 — (Optional) Set up images.** If you want illustrations, you'll need **ComfyUI** (a free local image generator) running on your computer. Turn on image generation and point the app at it under **Settings → Images**. You can skip this entirely and just write.
 
@@ -390,7 +390,7 @@ Shows the folder your data lives in. **Switch workspace…** lets you open or cr
 A **model preset** is a saved bundle of *which AI model to use* plus its creativity settings (things like **temperature** and **reasoning effort**). Keep several — for example a strong model for prose and a cheap one for quick tasks — and set which is **active**. The story editor lets you switch the model preset per story.
 
 ### Providers & API keys
-For each service you use — **Anthropic, OpenAI, OpenRouter, DeepSeek, NanoGPT** — paste your **API key** and **Test** the connection. Keys are stored securely on your computer. You only need to set up the provider(s) you actually use.
+For each service you use — **Anthropic, OpenAI, OpenRouter, DeepSeek, NanoGPT, Featherless** — paste your **API key** and **Test** the connection. Keys are stored securely on your computer. You only need to set up the provider(s) you actually use.
 
 ### OpenRouter routing
 If you use OpenRouter (which can route to many models), this lets you set a preferred **provider order** and whether to **allow fallbacks**. Ignore it if you don't use OpenRouter.
