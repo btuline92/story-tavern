@@ -1,7 +1,13 @@
 import { ipcMain } from 'electron'
 import { ulid } from 'ulid'
 import { getKey } from '../lib/safeStore'
-import { readWorkspaceSettings, resolveActiveModel, resolveModelFor } from './workspace'
+import {
+  readWorkspaceSettings,
+  resolveActiveModel,
+  resolveModelFor,
+  type ResolvedModel
+} from './workspace'
+import { describeOutcome, getOverrideRouting } from '../lib/overrideChecks'
 import { loadStory, updateStoryMeta } from '../lib/storyStorage'
 import { getPreset, defaultPreset } from '../lib/presetStore'
 import { assemble, stripImageMarkers, type PromptEntry } from '../lib/promptAssembly'
@@ -517,25 +523,38 @@ export function registerGenerationIpc(): void {
         if (!win.isDestroyed()) win.send('generation:stream:error', streamId, err)
       }
 
-      void (async () => {
+      // Override routing (Overrides tab): tell the editor what happened, and let it discard a
+      // flagged main reply before the override model streams its replacement.
+      const sendStatus = (msg: string): void => {
+        if (!win.isDestroyed()) win.send('generation:stream:status', streamId, msg)
+      }
+      const sendReset = (): void => {
+        if (!win.isDestroyed()) win.send('generation:stream:reset', streamId)
+      }
+
+      // One streamed attempt. Deltas go to the editor live; "done" is held back so the caller can
+      // still run response checks before the text is committed.
+      const attempt = async (
+        m: ResolvedModel,
+        key: string
+      ): Promise<{ text: string; error: string | null }> => {
         const start = Date.now()
         try {
           const metrics = await streamContinue(
             {
-              provider,
-              model,
-              apiKey,
-              generation,
+              provider: m.provider,
+              model: m.model,
+              apiKey: key,
+              generation: m.generation,
               entries,
               openrouter: settings.openrouter
             },
             ctrl.signal,
-            { onDelta: sendDelta, onReasoning: sendReasoning, onDone: sendDone, onError: sendError }
+            { onDelta: sendDelta, onReasoning: sendReasoning, onDone: () => {}, onError: () => {} }
           )
-          if (ctrl.signal.aborted) sendError('aborted')
           await logApiCall(workspace, {
-            provider,
-            model,
+            provider: m.provider,
+            model: m.model,
             kind: 'continue-stream',
             url: metrics.url,
             request_body: metrics.requestBody,
@@ -555,12 +574,12 @@ export function registerGenerationIpc(): void {
             chapter_number: chapterNumber,
             stream_chunks: metrics.chunkCount
           })
+          return { text: metrics.fullText, error: metrics.error }
         } catch (e) {
           const err = e instanceof Error ? e.message : String(e)
-          sendError(err)
           await logApiCall(workspace, {
-            provider,
-            model,
+            provider: m.provider,
+            model: m.model,
             kind: 'continue-stream',
             url: '',
             status: null,
@@ -569,6 +588,67 @@ export function registerGenerationIpc(): void {
             story_id: storyId,
             chapter_number: chapterNumber
           })
+          return { text: '', error: err }
+        }
+      }
+
+      void (async () => {
+        try {
+          const main: ResolvedModel = { provider, model, generation }
+          const routing = await getOverrideRouting(workspace, settings)
+          let use = main
+          let useKey = apiKey
+
+          // Prompt checks judge only what THIS generation asks for — the Magic Complete beat, else
+          // the user's note. The full prompt carries the system prompt (persona, character sheets,
+          // content permissions), which would flag nearly every story. Nothing to judge → skipped.
+          const ask = beat?.trim() || userNote?.trim() || ''
+          if (routing && routing.promptChecks.length > 0 && ask) {
+            sendStatus('Checking prompt…')
+            const o = await routing.run('prompt', ask, ctrl.signal)
+            if (o.triggered) {
+              use = routing.override
+              useKey = routing.overrideKey
+            }
+            sendStatus(o.triggered || o.error ? describeOutcome('prompt', o, routing.override.model) : '')
+          }
+
+          let result = await attempt(use, useKey)
+          if (ctrl.signal.aborted) {
+            // Keep the existing cancel behavior: commit whatever streamed, then report the abort.
+            if (result.text) sendDone(result.text)
+            sendError('aborted')
+            return
+          }
+
+          // Response checks only judge the MAIN model's reply; the override's reply is final.
+          if (
+            !result.error &&
+            routing &&
+            use === main &&
+            routing.responseChecks.length > 0 &&
+            result.text.trim()
+          ) {
+            sendStatus('Checking response…')
+            const o = await routing.run('response', result.text, ctrl.signal)
+            if (o.triggered && !ctrl.signal.aborted) {
+              sendReset()
+              sendStatus(describeOutcome('response', o, routing.override.model))
+              result = await attempt(routing.override, routing.overrideKey)
+              if (ctrl.signal.aborted) {
+                if (result.text) sendDone(result.text)
+                sendError('aborted')
+                return
+              }
+            } else {
+              sendStatus(o.error ? describeOutcome('response', o, routing.override.model) : '')
+            }
+          }
+
+          if (result.error) sendError(result.error)
+          else sendDone(result.text)
+        } catch (e) {
+          sendError(e instanceof Error ? e.message : String(e))
         } finally {
           activeStreams.delete(streamId)
         }
@@ -934,7 +1014,7 @@ export function registerGenerationIpc(): void {
       chapterNumber: number,
       passage: string,
       instruction: string
-    ): Promise<{ text: string } | { error: string }> => {
+    ): Promise<{ text: string; notice?: string } | { error: string }> => {
       if (!passage || !passage.trim()) return { error: 'No passage selected.' }
       if (!instruction || !instruction.trim())
         return { error: 'Enter an instruction for the rewrite.' }
@@ -986,43 +1066,77 @@ export function registerGenerationIpc(): void {
         summaryEnabled: settings.summarizer.enabled
       })
 
-      const ctrl = new AbortController()
-      let callError: string | null = null
-      const metrics = await streamContinue(
-        { provider, model, apiKey, generation, entries, openrouter: settings.openrouter },
-        ctrl.signal,
-        {
-          onDelta: () => {},
-          onReasoning: () => {},
-          onDone: () => {},
-          onError: (e) => {
-            callError = e
+      const runRewrite = async (
+        m: ResolvedModel,
+        key: string
+      ): Promise<{ text: string; error: string | null }> => {
+        const ctrl = new AbortController()
+        let callError: string | null = null
+        const metrics = await streamContinue(
+          {
+            provider: m.provider,
+            model: m.model,
+            apiKey: key,
+            generation: m.generation,
+            entries,
+            openrouter: settings.openrouter
+          },
+          ctrl.signal,
+          {
+            onDelta: () => {},
+            onReasoning: () => {},
+            onDone: () => {},
+            onError: (e) => {
+              callError = e
+            }
           }
-        }
-      )
-      await logApiCall(workspace, {
-        provider,
-        model,
-        kind: 'rewrite',
-        url: metrics.url,
-        request_body: metrics.requestBody,
-        status: metrics.status,
-        response_body: JSON.stringify(
-          { text: metrics.fullText, reasoning: metrics.reasoningText },
-          null,
-          2
-        ),
-        error: metrics.error,
-        duration_ms: metrics.durationMs,
-        story_id: storyId,
-        chapter_number: chapterNumber
-      })
-      if (callError || metrics.error) {
-        return { error: `Rewrite failed: ${callError ?? metrics.error}` }
+        )
+        await logApiCall(workspace, {
+          provider: m.provider,
+          model: m.model,
+          kind: 'rewrite',
+          url: metrics.url,
+          request_body: metrics.requestBody,
+          status: metrics.status,
+          response_body: JSON.stringify(
+            { text: metrics.fullText, reasoning: metrics.reasoningText },
+            null,
+            2
+          ),
+          error: metrics.error,
+          duration_ms: metrics.durationMs,
+          story_id: storyId,
+          chapter_number: chapterNumber
+        })
+        return { text: metrics.fullText.trim(), error: callError ?? metrics.error }
       }
-      const text = metrics.fullText.trim()
-      if (!text) return { error: 'The model returned an empty rewrite.' }
-      return { text }
+
+      // Override routing (Overrides tab): same prompt/response checks as Continue.
+      const main: ResolvedModel = { provider, model, generation }
+      const routing = await getOverrideRouting(workspace, settings)
+      let use = main
+      let useKey = apiKey
+      const notices: string[] = []
+      // The prompt check judges only the rewrite instruction (see Continue for why).
+      if (routing && routing.promptChecks.length > 0) {
+        const o = await routing.run('prompt', instruction)
+        if (o.triggered) {
+          use = routing.override
+          useKey = routing.overrideKey
+        }
+        if (o.triggered || o.error) notices.push(describeOutcome('prompt', o, routing.override.model))
+      }
+      let result = await runRewrite(use, useKey)
+      if (!result.error && result.text && routing && use === main && routing.responseChecks.length > 0) {
+        const o = await routing.run('response', result.text)
+        if (o.triggered) result = await runRewrite(routing.override, routing.overrideKey)
+        if (o.triggered || o.error) notices.push(describeOutcome('response', o, routing.override.model))
+      }
+      const notice = notices.length > 0 ? notices.join(' ') : undefined
+
+      if (result.error) return { error: `Rewrite failed: ${result.error}` }
+      if (!result.text) return { error: 'The model returned an empty rewrite.' }
+      return { text: result.text, notice }
     }
   )
 

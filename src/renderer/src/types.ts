@@ -229,6 +229,20 @@ export interface OverrideConfig {
   generation: GenerationSettings
 }
 
+/** One yes/no question put to the decision model. */
+export interface OverrideQuestion {
+  id: string
+  text: string
+  enabled: boolean
+}
+
+/** Filter-avoidance checks (Overrides tab); run only while the active preset has a decision model
+ *  and an override model. */
+export interface OverrideSettings {
+  promptChecks: OverrideQuestion[]
+  responseChecks: OverrideQuestion[]
+}
+
 export interface WorkspaceSettings {
   activePresetId: string | null
   image: ImageSettings
@@ -237,6 +251,7 @@ export interface WorkspaceSettings {
   magicAutoStart: boolean
   magicBeatPrompt: string
   outlineToBeats: boolean
+  overrides: OverrideSettings
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
 }

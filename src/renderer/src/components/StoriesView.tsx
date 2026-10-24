@@ -86,6 +86,7 @@ function StoryEditor({
     activeChapterNumber,
     generating,
     generationError,
+    overrideNotice,
     generationStartedAt,
     streamBuffer,
     reasoningBuffer,
@@ -632,13 +633,15 @@ function StoryEditor({
                   if (!chapter) return { error: 'No active chapter.' }
                   // Persist the draft so the rewrite IPC reads current content when locating the passage.
                   await flushSave()
-                  return window.api.generation.rewrite(
+                  const res = await window.api.generation.rewrite(
                     workspace,
                     active.meta.id,
                     chapter.number,
                     passage,
                     instruction
                   )
+                  useStories.setState({ overrideNotice: 'notice' in res ? (res.notice ?? null) : null })
+                  return res
                 }}
               />
               {generating && (
@@ -824,6 +827,14 @@ function StoryEditor({
           )}
         </div>
 
+        {overrideNotice && (
+          <div
+            className="border-t border-accent-500/30 bg-accent-500/10 px-6 py-2 text-sm text-ink-900 whitespace-pre-wrap"
+            title="Overrides tab: decision-model checks"
+          >
+            ⇄ {overrideNotice}
+          </div>
+        )}
         {generationError && (
           <div className="border-t border-danger/30 bg-danger/12 px-6 py-2 text-sm text-danger whitespace-pre-wrap">
             {generationError}

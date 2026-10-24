@@ -40,6 +40,9 @@ interface StoriesState {
    *  to the chapter when generation completes. */
   reasoningBuffer: string
   generationError: string | null
+  /** Override routing note from the main process (Overrides tab): what's being checked, or why the
+   *  override model was used. Kept after the generation finishes; cleared when the next starts. */
+  overrideNotice: string | null
   /** Bumps every time an external (non-user-typing) mutation lands on the active chapter,
    *  i.e. Continue completes. The chapter editor watches this to re-sync its drafts. */
   externalChapterRevision: number
@@ -146,6 +149,8 @@ interface StoriesState {
   /** Internal: called by IPC subscribers wired in App. */
   _onStreamDelta: (streamId: string, delta: string) => void
   _onStreamReasoning: (streamId: string, delta: string) => void
+  _onStreamStatus: (streamId: string, message: string) => void
+  _onStreamReset: (streamId: string) => void
   _onStreamDone: (workspace: string, streamId: string, fullText: string) => Promise<void>
   _onStreamError: (streamId: string, error: string) => void
   _onImageProgress: (genId: string, phase: ImagePhase) => void
@@ -163,6 +168,7 @@ export const useStories = create<StoriesState>((set, get) => ({
   streamBuffer: '',
   reasoningBuffer: '',
   generationError: null,
+  overrideNotice: null,
   externalChapterRevision: 0,
   pendingGenBefore: null,
   lastGen: null,
@@ -328,6 +334,7 @@ export const useStories = create<StoriesState>((set, get) => ({
       streamBuffer: '',
       reasoningBuffer: '',
       generationError: null,
+      overrideNotice: null,
       generationStartedAt: Date.now(),
       pendingGenBefore: ch ? ch.content : ''
     })
@@ -629,6 +636,15 @@ export const useStories = create<StoriesState>((set, get) => ({
   _onStreamReasoning: (streamId, delta) => {
     if (streamId !== get().generationStreamId) return
     set({ reasoningBuffer: get().reasoningBuffer + delta })
+  },
+  _onStreamStatus: (streamId, message) => {
+    if (streamId !== get().generationStreamId) return
+    set({ overrideNotice: message || null })
+  },
+  _onStreamReset: (streamId) => {
+    // The main reply was flagged by a response check; the override model's reply replaces it.
+    if (streamId !== get().generationStreamId) return
+    set({ streamBuffer: '', reasoningBuffer: '' })
   },
   _onStreamDone: async (workspace, streamId, fullText) => {
     // Top-level guard so ANY thrown error still resets state and unsticks the editor.

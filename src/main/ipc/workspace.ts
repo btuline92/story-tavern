@@ -176,6 +176,25 @@ export interface SummarizerSettings {
   // The summarizer model + generation settings live on each model preset (roles.summarizer).
 }
 
+/** One yes/no question put to the decision model. */
+export interface OverrideQuestion {
+  id: string
+  /** Asked of the text, e.g. "Does this text contain sexually explicit content?" */
+  text: string
+  enabled: boolean
+}
+
+/** Filter-avoidance checks (Overrides tab). Run only while the active model preset has a decision
+ *  model and an override model. A "yes" at or above the preset's decision threshold switches that
+ *  generation to the override model. */
+export interface OverrideSettings {
+  /** Asked before sending about what this generation requests (the Magic Complete beat, else the
+   *  user's note; the rewrite instruction for rewrites): would it trip the main model's filter? */
+  promptChecks: OverrideQuestion[]
+  /** Asked about the main model's reply: was it refused/filtered? If so, regenerate with override. */
+  responseChecks: OverrideQuestion[]
+}
+
 export interface WorkspaceSettings {
   /** Active PROMPT preset (not a model preset). */
   activePresetId: string | null
@@ -189,6 +208,7 @@ export interface WorkspaceSettings {
   magicBeatPrompt: string
   /** When on, applying a suggested outline also seeds the chapter's Magic Complete beats from it. */
   outlineToBeats: boolean
+  overrides: OverrideSettings
   /** Named model configs; `activeModelPresetId` selects the one used for generation. */
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
@@ -543,6 +563,59 @@ const DEFAULT_MODEL_PRESET: ModelPreset = {
   }
 }
 
+export const DEFAULT_OVERRIDES: OverrideSettings = {
+  promptChecks: [
+    {
+      id: 'prompt-explicit',
+      text: 'Does this text contain or request sexually explicit content?',
+      enabled: true
+    },
+    {
+      id: 'prompt-violence',
+      text: 'Does this text contain or request graphic violence or gore?',
+      enabled: true
+    }
+  ],
+  responseChecks: [
+    {
+      id: 'response-refusal',
+      text: 'Is this a refusal, apology, or statement that the writer cannot continue, rather than story prose?',
+      enabled: true
+    },
+    {
+      id: 'response-disclaimer',
+      text: 'Does this text step outside the story to give warnings, disclaimers, or content notes?',
+      enabled: true
+    }
+  ]
+}
+
+function mergeQuestions(raw: unknown, fallback: OverrideQuestion[]): OverrideQuestion[] {
+  if (!Array.isArray(raw)) return fallback.map((q) => ({ ...q }))
+  return raw
+    .filter((q): q is OverrideQuestion => !!q && typeof q === 'object' && typeof q.text === 'string')
+    .map((q, i) => ({
+      // Spread raw first so unknown (future) fields survive a load-and-save round-trip.
+      ...q,
+      id: typeof q.id === 'string' && q.id ? q.id : `q-${i}-${Date.now().toString(36)}`,
+      text: q.text,
+      enabled: typeof q.enabled === 'boolean' ? q.enabled : true
+    }))
+}
+
+function mergeOverrides(raw: unknown): OverrideSettings {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<OverrideSettings>
+  // Spread raw first so unknown (future) fields survive; drop the retired promptContextChars
+  // (prompt checks no longer see the full prompt).
+  const rest: Record<string, unknown> = { ...(raw && typeof raw === 'object' ? raw : {}) }
+  delete rest.promptContextChars
+  return {
+    ...rest,
+    promptChecks: mergeQuestions(r.promptChecks, DEFAULT_OVERRIDES.promptChecks),
+    responseChecks: mergeQuestions(r.responseChecks, DEFAULT_OVERRIDES.responseChecks)
+  }
+}
+
 const DEFAULT_SETTINGS: WorkspaceSettings = {
   activePresetId: null,
   image: { ...DEFAULT_IMAGE },
@@ -551,6 +624,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   magicAutoStart: true,
   magicBeatPrompt: DEFAULT_MAGIC_BEAT_PROMPT,
   outlineToBeats: false,
+  overrides: mergeOverrides(undefined),
   modelPresets: [structuredClone(DEFAULT_MODEL_PRESET)],
   activeModelPresetId: 'default'
 }
@@ -812,6 +886,7 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
         ? r.magicBeatPrompt
         : DEFAULT_MAGIC_BEAT_PROMPT,
     outlineToBeats: typeof r.outlineToBeats === 'boolean' ? r.outlineToBeats : false,
+    overrides: mergeOverrides(r.overrides),
     modelPresets,
     activeModelPresetId
   }

@@ -23,6 +23,7 @@ A few things that make it different from a chat app:
    - [Photography](#photography)
    - [Prompt Presets](#prompt-presets)
    - [Model Presets](#model-presets)
+   - [Overrides](#overrides)
    - [Plugins](#plugins)
    - [Lorebooks](#lorebooks)
    - [Images (setup)](#images-setup)
@@ -90,7 +91,7 @@ Everything **auto-saves** as you go.
 
 ## 4. The screens
 
-The app is organized as a row of tabs down the left side: **Stories, Characters, Gallery, Photography, Prompt Presets, Model Presets, Plugins, Lorebooks, Images, Summarizer, Logs, Settings.**
+The app is organized as a row of tabs down the left side: **Stories, Characters, Gallery, Photography, Prompt Presets, Model Presets, Overrides, Plugins, Lorebooks, Images, Summarizer, Logs, Settings.**
 
 ---
 
@@ -316,6 +317,26 @@ The **Model Presets** tab is the one place where you choose AI models. A **model
   - **Override model** appears only while the decision model is on. It's the model used *instead of* the main model when the decision model says so. It has no "same as main" model option (that would be pointless), but it can reuse the main model's generation settings.
 
 Use **Active for generation** to choose which preset is in use (you can also switch it from the story editor's model row). **+ New** starts a preset where every utility model is "same as main". **Duplicate** copies the preset you're editing, including all its utility models. That's handy when you only want to swap the main model. Remember to press **Save**.
+
+---
+
+### Overrides
+
+The **Overrides** tab works around models that refuse or filter certain content. When it's set up, a **decision model** (Jev) answers yes/no questions you write. If an answer is "yes" with enough confidence, the generation goes to your **override model** instead of the main model.
+
+There are two kinds of questions:
+
+- **Prompt checks** are asked *before* anything is sent, about what this generation asks for. That's the current **Magic Complete beat**; for a plain Continue, your **note to the model**; for a rewrite, your **instruction**. They never see the system prompt or the story so far, which would flag almost any story. Example: "Does this text contain or request sexually explicit content?" A yes means the main model would probably refuse, so the override model writes the passage and the main model is never called. A Continue with no note skips prompt checks.
+- **Response checks** are asked about the main model's *finished reply*. Example: "Is this a refusal rather than story prose?" A yes means the reply was refused or filtered. The reply is discarded (you'll see the streamed text disappear) and the override model writes it again.
+
+Details:
+
+- Overrides apply to **Continue**, **Magic Complete** passages, and **highlight-to-act rewrites**.
+- They only run when the active model preset has a decision model **and** an override model (**Model Presets → Decision & override**). The box at the top of the tab says whether overrides are active, and why not if they aren't.
+- "Enough confidence" is the decision model's **threshold** in the model preset. If several questions pass, the most confident one is reported.
+- Each question has an on/off checkbox; **+ Add question** and **✕** add and remove them. Remember to **Save**.
+- If the decision model fails or times out, the main model's result is kept.
+- A note under the editor says when an override happened and which question triggered it. Decision calls also appear in **Logs** (kind `decision`).
 
 ---
 

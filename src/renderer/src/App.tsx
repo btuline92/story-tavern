@@ -8,6 +8,7 @@ import { CharacterDetail } from './components/CharacterDetail'
 import { Settings } from './components/Settings'
 import { PresetsView } from './components/PresetsView'
 import { ModelPresetsPanel } from './components/ModelPresets'
+import { OverridesView } from './components/OverridesView'
 import { PluginsView } from './components/PluginsView'
 import { LorebooksView } from './components/LorebooksView'
 import { StoriesView } from './components/StoriesView'
@@ -25,6 +26,7 @@ type View =
   | 'photography'
   | 'presets'
   | 'models'
+  | 'overrides'
   | 'plugins'
   | 'lorebooks'
   | 'images'
@@ -39,6 +41,7 @@ const TABS: { id: View; label: string }[] = [
   { id: 'photography', label: 'Photography' },
   { id: 'presets', label: 'Prompt Presets' },
   { id: 'models', label: 'Model Presets' },
+  { id: 'overrides', label: 'Overrides' },
   { id: 'plugins', label: 'Plugins' },
   { id: 'lorebooks', label: 'Lorebooks' },
   { id: 'images', label: 'Images' },
@@ -81,6 +84,20 @@ function App(): React.JSX.Element {
         console.error('Stream reasoning handler failed:', e)
       }
     })
+    const offStatus = window.api.generation.onStatus((streamId, message) => {
+      try {
+        useStories.getState()._onStreamStatus(streamId, message)
+      } catch (e) {
+        console.error('Stream status handler failed:', e)
+      }
+    })
+    const offReset = window.api.generation.onReset((streamId) => {
+      try {
+        useStories.getState()._onStreamReset(streamId)
+      } catch (e) {
+        console.error('Stream reset handler failed:', e)
+      }
+    })
     const offDone = window.api.generation.onDone((streamId, fullText) => {
       useStories
         .getState()
@@ -120,6 +137,8 @@ function App(): React.JSX.Element {
     return () => {
       offDelta()
       offReasoning()
+      offStatus()
+      offReset()
       offDone()
       offError()
       offImageProgress()
@@ -172,6 +191,10 @@ function App(): React.JSX.Element {
             <h2 className="text-2xl font-semibold text-ink-900 mb-6">Model presets</h2>
             <ModelPresetsPanel />
           </div>
+        </main>
+      ) : view === 'overrides' ? (
+        <main className="row-start-2 col-span-2 overflow-hidden">
+          <OverridesView />
         </main>
       ) : view === 'plugins' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">

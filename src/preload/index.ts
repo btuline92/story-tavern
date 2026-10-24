@@ -121,6 +121,20 @@ export interface OverrideConfig {
   generation: GenerationSettings
 }
 
+/** One yes/no question put to the decision model. */
+export interface OverrideQuestion {
+  id: string
+  text: string
+  enabled: boolean
+}
+
+/** Filter-avoidance checks (Overrides tab); run only while the active preset has a decision model
+ *  and an override model. */
+export interface OverrideSettings {
+  promptChecks: OverrideQuestion[]
+  responseChecks: OverrideQuestion[]
+}
+
 export interface WorkspaceSettings {
   activePresetId: string | null
   image: ImageSettings
@@ -129,6 +143,7 @@ export interface WorkspaceSettings {
   magicAutoStart: boolean
   magicBeatPrompt: string
   outlineToBeats: boolean
+  overrides: OverrideSettings
   modelPresets: ModelPreset[]
   activeModelPresetId: string | null
 }
@@ -599,7 +614,7 @@ const api = {
       chapterNumber: number,
       passage: string,
       instruction: string
-    ): Promise<{ text: string } | { error: string }> =>
+    ): Promise<{ text: string; notice?: string } | { error: string }> =>
       ipcRenderer.invoke(
         'generation:rewrite',
         workspace,
@@ -624,7 +639,13 @@ const api = {
     onDone: (handler: (streamId: string, fullText: string) => void): (() => void) =>
       subscribe<[string, string]>('generation:stream:done', handler),
     onError: (handler: (streamId: string, error: string) => void): (() => void) =>
-      subscribe<[string, string]>('generation:stream:error', handler)
+      subscribe<[string, string]>('generation:stream:error', handler),
+    /** Override routing note for the editor ('' clears it). */
+    onStatus: (handler: (streamId: string, message: string) => void): (() => void) =>
+      subscribe<[string, string]>('generation:stream:status', handler),
+    /** The streamed main reply was flagged; discard it — the override model's reply follows. */
+    onReset: (handler: (streamId: string) => void): (() => void) =>
+      subscribe<[string]>('generation:stream:reset', handler)
   },
   comfy: {
     test: (url: string): Promise<{ ok: boolean; error?: string }> =>
