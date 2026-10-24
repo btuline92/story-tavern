@@ -6,6 +6,7 @@ import { registerWorkspaceIpc } from './ipc/workspace'
 import { registerCharactersIpc } from './ipc/characters'
 import { registerKeysIpc } from './ipc/keys'
 import { registerProvidersIpc } from './ipc/providers'
+import { registerDecisionIpc } from './ipc/decision'
 import { registerPresetsIpc } from './ipc/presets'
 import { registerStoriesIpc } from './ipc/stories'
 import { registerGenerationIpc } from './ipc/generation'
@@ -89,6 +90,7 @@ app.whenReady().then(() => {
   registerCharactersIpc()
   registerKeysIpc()
   registerProvidersIpc()
+  registerDecisionIpc()
   registerPresetsIpc()
   registerStoriesIpc()
   registerGenerationIpc()

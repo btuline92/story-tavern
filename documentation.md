@@ -306,6 +306,15 @@ The **Model Presets** tab is the one place where you choose AI models. A **model
 
   The collapsed row shows a one-line summary, such as "Same as main" or "deepseek-chat · custom settings". If you uncheck a box, pick something, and re-check it, your pick is remembered for next time.
 
+- **Decision & override** (optional):
+  - **Use a decision model** turns on a *decision model*: TypeSafe's **Jev**, a "System One" model, reached through **OpenRouter** with your OpenRouter API key (no separate account needed). It isn't a chat model and never writes or copies text. It answers structured questions about the story (yes/no, pick-one, or a score) with calibrated probabilities. Its settings are therefore different from an LLM's:
+    - **Model**: `~typesafe/jev-latest` (always the newest Jev), or a pinned version like `typesafe/jev-1.14`.
+    - **Threshold**: how confident a decision must be before acting.
+    - **Timeout**: if it doesn't answer in time, the main model is used.
+    - **API base URL**, under **Advanced**: OpenRouter by default; leave it alone unless you know you need a different gateway.
+  - **Test decision model** checks the key and settings.
+  - **Override model** appears only while the decision model is on. It's the model used *instead of* the main model when the decision model says so. It has no "same as main" model option (that would be pointless), but it can reuse the main model's generation settings.
+
 Use **Active for generation** to choose which preset is in use (you can also switch it from the story editor's model row). **+ New** starts a preset where every utility model is "same as main". **Duplicate** copies the preset you're editing, including all its utility models. That's handy when you only want to swap the main model. Remember to press **Save**.
 
 ---

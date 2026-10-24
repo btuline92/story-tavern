@@ -183,6 +183,10 @@ function openAICompatRequest(
       // OpenRouter's unified abstraction: it translates `reasoning.effort` to the
       // underlying provider's mechanism (Anthropic thinking, OpenAI effort, R1, etc.).
       body.reasoning = { effort: req.generation.reasoning_level }
+    } else if (options.provider === 'nanogpt') {
+      // NanoGPT takes OpenAI-style reasoning_effort for any model, which also switches on
+      // thinking for hybrid models (e.g. Qwen3 variants); thinking streams on `delta.reasoning`.
+      body.reasoning_effort = req.generation.reasoning_level
     }
     // DeepSeek direct: no API param — user picks a reasoning-capable model id
     // (e.g. deepseek-reasoner). The streamed `reasoning_content` will still be captured.

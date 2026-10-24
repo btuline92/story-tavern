@@ -22,6 +22,7 @@ export type ApiLogKind =
   | 'image-generate'
   | 'summarize'
   | 'rewrite'
+  | 'decision'
 
 export interface ApiLogEntry {
   id: string

@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
-import type { GenerationSettings, ModelPreset, ModelRole, ProviderId, RoleConfig } from '../types'
+import type {
+  DecisionConfig,
+  GenerationSettings,
+  ModelPreset,
+  ModelRole,
+  OverrideConfig,
+  ProviderId,
+  RoleConfig
+} from '../types'
 import { ModelSelect } from './ModelSelect'
 import { GenerationFields } from './GenerationSettings'
 
@@ -43,6 +51,17 @@ const ROLE_DEFS: { id: ModelRole; label: string; hint: string }[] = [
     hint: 'Folding old chapters into the running story summary.'
   }
 ]
+
+const DEFAULT_DECISION: DecisionConfig = {
+  enabled: false,
+  model: '~typesafe/jev-latest',
+  baseUrl: 'https://openrouter.ai/api',
+  threshold: 0.5,
+  timeoutMs: 5000
+}
+
+/** Jev model ids on OpenRouter; any other id can be typed. */
+const JEV_MODELS = ['~typesafe/jev-latest', 'typesafe/jev-1.14', 'typesafe/jev-1.13']
 
 function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -155,6 +174,220 @@ function RoleEditor({
   )
 }
 
+function DecisionEditor({
+  cfg,
+  hasKey,
+  onChange
+}: {
+  cfg: DecisionConfig
+  hasKey: boolean
+  onChange: (patch: Partial<DecisionConfig>) => void
+}): React.JSX.Element {
+  const workspace = useWorkspace((s) => s.path)!
+  const [testing, setTesting] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  const [ok, setOk] = useState(false)
+
+  const test = async (): Promise<void> => {
+    setTesting(true)
+    setResult(null)
+    try {
+      const r = await window.api.decision.test(
+        { model: cfg.model, baseUrl: cfg.baseUrl, timeoutMs: cfg.timeoutMs },
+        undefined,
+        workspace
+      )
+      setOk(r.ok)
+      setResult(
+        r.ok
+          ? `✓ ${r.model ?? cfg.model} answered in ${r.durationMs} ms` +
+              (r.probability != null ? ` (test answer: ${r.probability.toFixed(2)})` : '')
+          : `✗ ${r.error}`
+      )
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-ink-200 bg-ink-50 p-3 space-y-3">
+      <label className="flex cursor-pointer items-center gap-2 select-none">
+        <input
+          type="checkbox"
+          checked={cfg.enabled}
+          onChange={(e) => onChange({ enabled: e.target.checked })}
+          className="h-4 w-4 accent-accent-500"
+        />
+        <span className="text-sm font-medium text-ink-900">Use a decision model</span>
+      </label>
+      <div className="text-xs text-ink-700">
+        A System One decision model (TypeSafe Jev, via OpenRouter) answers structured questions
+        about the story — yes/no, pick-one, or a score — and decides when the override model
+        replaces the main model. It never writes text, so it has no sampling or reasoning settings.
+      </div>
+      {cfg.enabled && (
+        <>
+          {!hasKey && (
+            <div className="text-xs text-danger">
+              No OpenRouter API key saved — add one under Settings → Providers &amp; API keys.
+            </div>
+          )}
+          <div className="grid grid-cols-[1fr_8rem_8rem] gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-700">
+                Model
+              </label>
+              <input
+                type="text"
+                list="jev-models"
+                value={cfg.model}
+                onChange={(e) => onChange({ model: e.target.value })}
+                placeholder="~typesafe/jev-latest"
+                className="st-input w-full"
+              />
+              <datalist id="jev-models">
+                {JEV_MODELS.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label
+                className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-700"
+                title="Probability (0–1) a decision must reach before the override model is used"
+              >
+                Threshold
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={cfg.threshold}
+                onChange={(e) =>
+                  onChange({ threshold: Math.min(1, Math.max(0, Number(e.target.value) || 0)) })
+                }
+                className="st-input w-full"
+              />
+            </div>
+            <div>
+              <label
+                className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-700"
+                title="If the decision model doesn't answer in time, the main model is used"
+              >
+                Timeout (ms)
+              </label>
+              <input
+                type="number"
+                min={500}
+                step={500}
+                value={cfg.timeoutMs}
+                onChange={(e) =>
+                  onChange({ timeoutMs: Math.max(500, Math.round(Number(e.target.value) || 0)) })
+                }
+                className="st-input w-full"
+              />
+            </div>
+          </div>
+          <details>
+            <summary className="cursor-pointer select-none text-xs text-ink-700">Advanced</summary>
+            <div className="mt-2">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-700">
+                API base URL
+              </label>
+              <input
+                type="text"
+                value={cfg.baseUrl}
+                onChange={(e) => onChange({ baseUrl: e.target.value })}
+                placeholder={DEFAULT_DECISION.baseUrl}
+                className="st-input w-full"
+              />
+              <div className="mt-1 text-xs text-ink-700">
+                OpenRouter&apos;s System One API by default. Requests go to{' '}
+                <code>{'<base URL>'}/v1/systemone</code>.
+              </div>
+            </div>
+          </details>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={test}
+              disabled={testing || !hasKey || !cfg.model.trim()}
+              className="st-btn st-btn-sm st-btn-default"
+            >
+              {testing ? 'Testing…' : 'Test decision model'}
+            </button>
+            {result && (
+              <span className={`text-xs ${ok ? 'text-success' : 'text-danger'} break-all`}>
+                {result}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function OverrideEditor({
+  cfg,
+  hasKey,
+  onChange
+}: {
+  cfg: OverrideConfig
+  hasKey: Record<ProviderId, boolean>
+  onChange: (patch: Partial<OverrideConfig>) => void
+}): React.JSX.Element {
+  return (
+    <div className="rounded-md border border-ink-200 bg-ink-50 p-3 space-y-3">
+      <div className="text-sm font-medium text-ink-900">Override model</div>
+      <div className="text-xs text-ink-700">
+        Used in place of the main model when the decision model says so.
+      </div>
+      <div className="grid grid-cols-[10rem_1fr] items-start gap-2">
+        <select
+          value={cfg.provider}
+          onChange={(e) => onChange({ provider: e.target.value as ProviderId })}
+          className="st-select"
+        >
+          {PROVIDERS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <ModelSelect
+          provider={cfg.provider}
+          value={cfg.model}
+          hasKey={hasKey[cfg.provider]}
+          onChange={(model) => onChange({ model })}
+          liveCommit
+        />
+      </div>
+      {!cfg.model.trim() && (
+        <div className="text-xs text-danger">
+          Pick an override model — until then the main model is always used.
+        </div>
+      )}
+      <label className="flex cursor-pointer items-center gap-2 select-none">
+        <input
+          type="checkbox"
+          checked={cfg.useMainGeneration}
+          onChange={(e) => onChange({ useMainGeneration: e.target.checked })}
+          className="h-4 w-4 accent-accent-500"
+        />
+        <span className="text-sm text-ink-900">Generation settings: same as main</span>
+      </label>
+      {!cfg.useMainGeneration && (
+        <GenerationFields
+          value={cfg.generation}
+          onChange={(g: GenerationSettings) => onChange({ generation: g })}
+        />
+      )}
+    </div>
+  )
+}
+
 export function ModelPresetsPanel(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
   const { settings, hasKey } = useSettings()
@@ -219,7 +452,14 @@ export function ModelPresetsPanel(): React.JSX.Element {
       generation: { ...editing.generation },
       notes: '',
       // Every utility model starts as "same as main".
-      roles: {}
+      roles: {},
+      decision: { ...DEFAULT_DECISION },
+      override: {
+        provider: editing.provider,
+        model: '',
+        useMainGeneration: true,
+        generation: { ...editing.generation }
+      }
     })
   }
 
@@ -418,6 +658,26 @@ export function ModelPresetsPanel(): React.JSX.Element {
                 onChange={(patch) => updateRole(def.id, patch)}
               />
             ))}
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-ink-200 pt-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-700">
+            Decision &amp; override
+          </div>
+          <div className="space-y-2">
+            <DecisionEditor
+              cfg={editing.decision}
+              hasKey={hasKey.openrouter}
+              onChange={(patch) => updateEditing({ decision: { ...editing.decision, ...patch } })}
+            />
+            {editing.decision.enabled && (
+              <OverrideEditor
+                cfg={editing.override}
+                hasKey={hasKey}
+                onChange={(patch) => updateEditing({ override: { ...editing.override, ...patch } })}
+              />
+            )}
           </div>
         </div>
       </div>

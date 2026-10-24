@@ -130,6 +130,35 @@ export interface ModelPreset {
   /** Free-form notes about this model (e.g. what it's good at). Display-only. */
   notes: string
   roles: Record<string, RoleConfig>
+  /** Optional decision model (TypeSafe Jev). When enabled, it decides when `override` replaces the
+   *  main model. */
+  decision: DecisionConfig
+  /** Used in place of the main model when the decision model says so. Only meaningful (and only
+   *  shown) while `decision.enabled`. Has no "same as main" model option by design. */
+  override: OverrideConfig
+}
+
+/** A System One decision model (TypeSafe Jev), reached through OpenRouter's System One API with the
+ *  OpenRouter key. Not an LLM: it answers typed questions (yes/no probability, pick-one, score)
+ *  about a piece of text and can't produce or copy prose, so it has no sampling or reasoning
+ *  settings. */
+export interface DecisionConfig {
+  enabled: boolean
+  /** OpenRouter model id, e.g. '~typesafe/jev-latest' or a pinned 'typesafe/jev-1.14'. */
+  model: string
+  /** API base URL (OpenRouter by default). The endpoint is `${baseUrl}/v1/systemone`. */
+  baseUrl: string
+  /** Probability (0–1) a decision must reach before the override model is used. */
+  threshold: number
+  /** Request timeout. Decisions are fast (~70–500 ms); on timeout we fall back to the main model. */
+  timeoutMs: number
+}
+
+export interface OverrideConfig {
+  provider: ProviderId
+  model: string
+  useMainGeneration: boolean
+  generation: GenerationSettings
 }
 
 /** Rolling-summary settings. When enabled, the oldest unsummarized chapters are folded into a running
@@ -489,6 +518,14 @@ function migrateReasoning(raw: unknown): ReasoningLevel {
   return 'off'
 }
 
+export const DEFAULT_DECISION: DecisionConfig = {
+  enabled: false,
+  model: '~typesafe/jev-latest',
+  baseUrl: 'https://openrouter.ai/api',
+  threshold: 0.5,
+  timeoutMs: 5000
+}
+
 const DEFAULT_MODEL_PRESET: ModelPreset = {
   id: 'default',
   name: 'Default',
@@ -496,7 +533,14 @@ const DEFAULT_MODEL_PRESET: ModelPreset = {
   model: defaultModelFor('anthropic'),
   generation: { ...DEFAULT_GENERATION },
   notes: '',
-  roles: {}
+  roles: {},
+  decision: { ...DEFAULT_DECISION },
+  override: {
+    provider: 'anthropic',
+    model: '',
+    useMainGeneration: true,
+    generation: { ...DEFAULT_GENERATION }
+  }
 }
 
 const DEFAULT_SETTINGS: WorkspaceSettings = {
@@ -507,7 +551,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   magicAutoStart: true,
   magicBeatPrompt: DEFAULT_MAGIC_BEAT_PROMPT,
   outlineToBeats: false,
-  modelPresets: [{ ...DEFAULT_MODEL_PRESET, generation: { ...DEFAULT_GENERATION }, roles: {} }],
+  modelPresets: [structuredClone(DEFAULT_MODEL_PRESET)],
   activeModelPresetId: 'default'
 }
 
@@ -538,8 +582,7 @@ export function resolveModelFor(
   settings: WorkspaceSettings,
   role: ModelRole | 'main'
 ): ResolvedModel {
-  const presets = settings.modelPresets
-  const active = presets.find((p) => p.id === settings.activeModelPresetId) ?? presets[0]
+  const active = activePreset(settings)
   const main: ResolvedModel = {
     provider: active.provider,
     model: active.model,
@@ -556,9 +599,69 @@ export function resolveModelFor(
   }
 }
 
+function activePreset(settings: WorkspaceSettings): ModelPreset {
+  const presets = settings.modelPresets
+  return presets.find((p) => p.id === settings.activeModelPresetId) ?? presets[0]
+}
+
+/** The active preset's decision model, or null when it's disabled or has no model id. */
+export function resolveDecisionModel(settings: WorkspaceSettings): DecisionConfig | null {
+  const d = activePreset(settings).decision
+  return d.enabled && d.model.trim() ? d : null
+}
+
+/** The active preset's override model, or null when the decision model is off (the override is
+ *  only ever used on the decision model's say-so) or no override model is picked. */
+export function resolveOverrideModel(settings: WorkspaceSettings): ResolvedModel | null {
+  const preset = activePreset(settings)
+  if (!resolveDecisionModel(settings)) return null
+  const o = preset.override
+  if (!o.model.trim()) return null
+  return {
+    provider: o.provider,
+    model: o.model,
+    generation: o.useMainGeneration ? preset.generation : o.generation
+  }
+}
+
 /** The main (story-writing) model of the active preset. */
 export function resolveActiveModel(settings: WorkspaceSettings): ResolvedModel {
   return resolveModelFor(settings, 'main')
+}
+
+function clamp(n: unknown, min: number, max: number, fallback: number): number {
+  return typeof n === 'number' && Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback
+}
+
+function mergeDecision(raw: unknown): DecisionConfig {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<DecisionConfig>
+  // Spread raw first so unknown (future) fields survive a load-and-save round-trip.
+  return {
+    ...(raw && typeof raw === 'object' ? (raw as object) : {}),
+    enabled: typeof r.enabled === 'boolean' ? r.enabled : DEFAULT_DECISION.enabled,
+    model: typeof r.model === 'string' && r.model.trim() ? r.model : DEFAULT_DECISION.model,
+    // The direct TypeSafe URL was briefly the default; Jev is now reached through OpenRouter.
+    baseUrl:
+      typeof r.baseUrl === 'string' &&
+      r.baseUrl.trim() &&
+      !/^https:\/\/api\.typesafe\.ai\/?$/.test(r.baseUrl.trim())
+        ? r.baseUrl.trim().replace(/\/+$/, '')
+        : DEFAULT_DECISION.baseUrl,
+    threshold: clamp(r.threshold, 0, 1, DEFAULT_DECISION.threshold),
+    timeoutMs: Math.round(clamp(r.timeoutMs, 500, 60000, DEFAULT_DECISION.timeoutMs))
+  }
+}
+
+/** Missing override → empty model on the main provider, so picking one is a single step. */
+function mergeOverride(raw: unknown, mainProvider: ProviderId): OverrideConfig {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<OverrideConfig>
+  return {
+    ...(raw && typeof raw === 'object' ? (raw as object) : {}),
+    provider: r.provider ? coerceProvider(r.provider) : mainProvider,
+    model: typeof r.model === 'string' ? r.model : '',
+    useMainGeneration: typeof r.useMainGeneration === 'boolean' ? r.useMainGeneration : true,
+    generation: mergeGeneration(r.generation)
+  }
 }
 
 function mergeRole(raw: unknown): RoleConfig | null {
@@ -668,7 +771,9 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
           roles:
             p.roles && typeof p.roles === 'object'
               ? mergeRoles(p.roles)
-              : legacyRoles(r.image, r.summarizer)
+              : legacyRoles(r.image, r.summarizer),
+          decision: mergeDecision(p.decision),
+          override: mergeOverride(p.override, coerceProvider(p.provider))
         }))
     : []
   if (modelPresets.length === 0) {
@@ -681,7 +786,9 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
         model: r.models?.[seedProvider] || defaultModelFor(seedProvider),
         generation: mergeGeneration(r.generation),
         notes: '',
-        roles: legacyRoles(r.image, r.summarizer)
+        roles: legacyRoles(r.image, r.summarizer),
+        decision: mergeDecision(undefined),
+        override: mergeOverride(undefined, seedProvider)
       }
     ]
   }

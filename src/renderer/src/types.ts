@@ -205,6 +205,28 @@ export interface ModelPreset {
   notes: string
   /** Keyed by ModelRole; a missing role means "same as main". Unknown keys are preserved. */
   roles: Record<string, RoleConfig>
+  /** Optional decision model (TypeSafe Jev) that decides when `override` replaces the main model. */
+  decision: DecisionConfig
+  /** Used in place of the main model when the decision model says so (only while enabled). */
+  override: OverrideConfig
+}
+
+/** A System One decision model (TypeSafe Jev), reached through OpenRouter with the OpenRouter key.
+ *  Answers typed questions about text, never writes prose, so it has no sampling settings. */
+export interface DecisionConfig {
+  enabled: boolean
+  model: string
+  baseUrl: string
+  /** Probability (0–1) a decision must reach before the override model is used. */
+  threshold: number
+  timeoutMs: number
+}
+
+export interface OverrideConfig {
+  provider: ProviderId
+  model: string
+  useMainGeneration: boolean
+  generation: GenerationSettings
 }
 
 export interface WorkspaceSettings {
@@ -330,6 +352,7 @@ export type ApiLogKind =
   | 'image-generate'
   | 'summarize'
   | 'rewrite'
+  | 'decision'
 
 export interface ApiLogEntry {
   id: string
