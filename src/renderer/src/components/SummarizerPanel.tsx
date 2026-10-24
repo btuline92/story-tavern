@@ -1,18 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
-import type { ProviderId, SummarizerSettings } from '../types'
-import { ModelSelect } from './ModelSelect'
-import { GenerationFields } from './GenerationSettings'
-
-const PROVIDERS: { id: ProviderId; name: string }[] = [
-  { id: 'anthropic', name: 'Anthropic' },
-  { id: 'openai', name: 'OpenAI' },
-  { id: 'openrouter', name: 'OpenRouter' },
-  { id: 'deepseek', name: 'DeepSeek' },
-  { id: 'nanogpt', name: 'NanoGPT' },
-  { id: 'featherless', name: 'Featherless' }
-]
+import type { SummarizerSettings } from '../types'
 
 function NumField({
   label,
@@ -65,7 +54,7 @@ function Toggle({
 
 export function SummarizerPanel(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
-  const { settings, hasKey } = useSettings()
+  const { settings } = useSettings()
   const [draft, setDraft] = useState<SummarizerSettings | null>(settings?.summarizer ?? null)
   const [saving, setSaving] = useState(false)
 
@@ -165,53 +154,10 @@ export function SummarizerPanel(): React.JSX.Element {
           />
         </div>
 
-        <div className="rounded-md border border-ink-200 bg-ink-50 p-3">
-          <Toggle
-            label="Use a different model for summarizing"
-            checked={draft.modelOverride.enabled}
-            onChange={(v) => set('modelOverride', { ...draft.modelOverride, enabled: v })}
-          />
-          {draft.modelOverride.enabled ? (
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-[8rem_1fr] gap-2 items-start">
-                <select
-                  value={draft.modelOverride.provider}
-                  onChange={(e) =>
-                    set('modelOverride', {
-                      ...draft.modelOverride,
-                      provider: e.target.value as ProviderId
-                    })
-                  }
-                  className="rounded-md border border-ink-200 px-2 py-2 text-sm bg-surface"
-                >
-                  {PROVIDERS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <ModelSelect
-                  provider={draft.modelOverride.provider}
-                  value={draft.modelOverride.model}
-                  hasKey={hasKey[draft.modelOverride.provider]}
-                  onChange={(model) => set('modelOverride', { ...draft.modelOverride, model })}
-                  liveCommit
-                />
-              </div>
-              <div>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">
-                  Generation settings for this model
-                </div>
-                <GenerationFields value={draft.generation} onChange={(g) => set('generation', g)} />
-              </div>
-            </div>
-          ) : (
-            <div className="text-xs text-ink-700 mt-1">
-              Uses the active model preset — its provider, model, and hyperparameters. (We
-              don&apos;t impose our own sampling settings, since many models are picky about them.)
-            </div>
-          )}
-        </div>
+        <p className="text-xs text-ink-700">
+          The summarizer model and its generation settings are set per model preset (Model Presets →
+          Summarizer).
+        </p>
       </div>
     </div>
   )

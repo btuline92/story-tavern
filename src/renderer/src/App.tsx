@@ -7,6 +7,7 @@ import { CharacterList } from './components/CharacterList'
 import { CharacterDetail } from './components/CharacterDetail'
 import { Settings } from './components/Settings'
 import { PresetsView } from './components/PresetsView'
+import { ModelPresetsPanel } from './components/ModelPresets'
 import { PluginsView } from './components/PluginsView'
 import { LorebooksView } from './components/LorebooksView'
 import { StoriesView } from './components/StoriesView'
@@ -23,6 +24,7 @@ type View =
   | 'gallery'
   | 'photography'
   | 'presets'
+  | 'models'
   | 'plugins'
   | 'lorebooks'
   | 'images'
@@ -35,7 +37,8 @@ const TABS: { id: View; label: string }[] = [
   { id: 'characters', label: 'Characters' },
   { id: 'gallery', label: 'Gallery' },
   { id: 'photography', label: 'Photography' },
-  { id: 'presets', label: 'Presets' },
+  { id: 'presets', label: 'Prompt Presets' },
+  { id: 'models', label: 'Model Presets' },
   { id: 'plugins', label: 'Plugins' },
   { id: 'lorebooks', label: 'Lorebooks' },
   { id: 'images', label: 'Images' },
@@ -162,6 +165,13 @@ function App(): React.JSX.Element {
       ) : view === 'presets' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">
           <PresetsView />
+        </main>
+      ) : view === 'models' ? (
+        <main className="row-start-2 col-span-2 overflow-hidden">
+          <div className="h-full overflow-y-auto p-8">
+            <h2 className="text-2xl font-semibold text-ink-900 mb-6">Model presets</h2>
+            <ModelPresetsPanel />
+          </div>
         </main>
       ) : view === 'plugins' ? (
         <main className="row-start-2 col-span-2 overflow-hidden">

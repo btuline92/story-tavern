@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react'
-import { useSettings } from '../stores/settings'
-import { useWorkspace } from '../stores/workspace'
+import { useState } from 'react'
 import type { GenerationSettings, ReasoningLevel } from '../types'
 
 interface NumFieldProps {
@@ -55,8 +53,8 @@ function NumField({
 
 /**
  * Presentational editor for a full GenerationSettings object (hyperparameters + stop
- * sequences + reasoning). Controlled — owns no persistence. Reused for the base model
- * settings (GenerationSettingsPanel) and the dedicated image-tagging settings.
+ * sequences + reasoning). Controlled — owns no persistence. Used by model presets for the main
+ * model and for each utility-model override.
  */
 export function GenerationFields({
   value,
@@ -221,66 +219,5 @@ export function GenerationFields({
         </div>
       </div>
     </>
-  )
-}
-
-export function GenerationSettingsPanel(): React.JSX.Element {
-  const workspace = useWorkspace((s) => s.path)!
-  const { settings } = useSettings()
-  const [draft, setDraft] = useState<GenerationSettings | null>(settings?.generation ?? null)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraft(settings?.generation ?? null)
-  }, [settings?.generation])
-
-  if (!settings || !draft) return <></>
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(settings.generation)
-
-  const save = async (): Promise<void> => {
-    if (!dirty || !draft) return
-    setSaving(true)
-    try {
-      await window.api.workspace.setSettings(workspace, { ...settings, generation: draft })
-      // Refresh in-store
-      const refreshed = await window.api.workspace.getSettings(workspace)
-      useSettings.setState({ settings: refreshed })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const discard = (): void => {
-    setDraft(settings.generation)
-  }
-
-  return (
-    <div className="rounded-lg border border-ink-200 bg-surface p-4 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="font-medium text-ink-900">Generation</div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={discard}
-            disabled={!dirty}
-            className="rounded-md border border-ink-200 px-3 py-1.5 text-sm hover:bg-ink-100 disabled:opacity-50"
-          >
-            Discard
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={!dirty || saving}
-            className="rounded-md bg-accent-500 px-3 py-1.5 text-sm text-white font-medium hover:bg-accent-600 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </div>
-
-      <GenerationFields value={draft} onChange={setDraft} />
-    </div>
   )
 }

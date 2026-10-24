@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ulid } from 'ulid'
 import { getKey } from '../lib/safeStore'
-import { readWorkspaceSettings, resolveActiveModel } from './workspace'
+import { readWorkspaceSettings, resolveModelFor } from './workspace'
 import { loadStory } from '../lib/storyStorage'
 import { streamContinue } from '../lib/streamGeneration'
 import { logApiCall } from '../lib/apiLogger'
@@ -17,7 +17,6 @@ import {
 } from '../lib/imagePrompt'
 import { readWorkflow } from '../lib/comfyWorkflows'
 import { submitAndFetchImage } from '../lib/comfyClient'
-import type { ProviderId } from './providers'
 
 export type ImagePhase = 'tagging' | 'generating' | 'saving'
 
@@ -100,14 +99,8 @@ export function registerImageIpc(): void {
       try {
         // --- 1. Tag the passage with the LLM ---
         progress('tagging')
-        // Base provider/model follow the active model preset; tagModelOverride can override.
-        const base = resolveActiveModel(settings)
-        let provider: ProviderId = base.provider
-        let model = base.model
-        if (image.tagModelOverride.enabled && image.tagModelOverride.model) {
-          provider = image.tagModelOverride.provider
-          model = image.tagModelOverride.model
-        }
+        // Model + hyperparameters: the active model preset's image-tagging role.
+        const { provider, model, generation } = resolveModelFor(settings, 'imageTagging')
         const apiKey = await getKey(provider)
         if (!apiKey)
           return { error: `No API key saved for ${provider} (needed for image tagging).` }
@@ -146,9 +139,9 @@ export function registerImageIpc(): void {
             provider,
             model,
             apiKey,
-            generation: image.generation,
+            generation,
             entries,
-            disableReasoning: image.generation.reasoning_level === 'off',
+            disableReasoning: generation.reasoning_level === 'off',
             openrouter: settings.openrouter
           },
           ctrl.signal,
@@ -303,13 +296,7 @@ export function registerImageIpc(): void {
         let tags: string
         if (opts.mode === 'scene') {
           progress('tagging')
-          const base = resolveActiveModel(settings)
-          let provider: ProviderId = base.provider
-          let model = base.model
-          if (image.tagModelOverride.enabled && image.tagModelOverride.model) {
-            provider = image.tagModelOverride.provider
-            model = image.tagModelOverride.model
-          }
+          const { provider, model, generation } = resolveModelFor(settings, 'imageTagging')
           const apiKey = await getKey(provider)
           if (!apiKey)
             return { error: `No API key saved for ${provider} (needed for image tagging).` }
@@ -341,9 +328,9 @@ export function registerImageIpc(): void {
               provider,
               model,
               apiKey,
-              generation: image.generation,
+              generation,
               entries,
-              disableReasoning: image.generation.reasoning_level === 'off',
+              disableReasoning: generation.reasoning_level === 'off',
               openrouter: settings.openrouter
             },
             ctrl.signal,

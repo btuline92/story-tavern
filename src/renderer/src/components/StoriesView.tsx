@@ -12,7 +12,6 @@ import { StoryDetailsPanel } from './StoryDetailsPanel'
 import { StoryReader } from './StoryReader'
 import { ChapterDocument } from './ChapterDocument'
 import { OutlineSuggestDialog } from './OutlineSuggestDialog'
-import { ModelSelect } from './ModelSelect'
 
 const IMAGE_MARKER_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g
 
@@ -121,11 +120,8 @@ function StoryEditor({
   const outlineToBeats = useSettings((s) => s.settings?.outlineToBeats ?? false)
   const settings = useSettings((s) => s.settings)
   const setActiveModelPreset = useSettings((s) => s.setActiveModelPreset)
-  const patchActiveModelPreset = useSettings((s) => s.patchActiveModelPreset)
-  const hasKey = useSettings((s) => s.hasKey)
   const modelPresets = settings?.modelPresets ?? []
   const activeModelPresetId = settings?.activeModelPresetId ?? null
-  const activePreset = modelPresets.find((p) => p.id === activeModelPresetId) ?? modelPresets[0]
   const [titleDraft, setTitleDraft] = useState('')
   const [outlineDraft, setOutlineDraft] = useState('')
   const [contentDraft, setContentDraft] = useState('')
@@ -555,16 +551,6 @@ function StoryEditor({
                 </option>
               ))}
             </select>
-          )}
-          {activePreset && (
-            <div className="w-72 max-w-full" title="Model for the active preset">
-              <ModelSelect
-                provider={activePreset.provider}
-                value={activePreset.model}
-                hasKey={hasKey[activePreset.provider]}
-                onChange={(model) => patchActiveModelPreset(workspace, { model })}
-              />
-            </div>
           )}
         </div>
 

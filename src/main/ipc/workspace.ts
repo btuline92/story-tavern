@@ -90,10 +90,7 @@ export interface ImageSettings {
   /** Named "scene instruction" prompts (e.g. camera perspectives); one is active at a time. */
   tagPrompts: TagPrompt[]
   activeTagPrompt: string
-  /** Dedicated generation settings for the tagging LLM call — full hyperparameters +
-   *  reasoning. Image tagging no longer inherits the base model's generation settings. */
-  generation: GenerationSettings
-  tagModelOverride: TagModelOverride
+  // The tagging model + its generation settings live on each model preset (roles.imageTagging).
 }
 
 export interface OpenRouterSettings {
@@ -105,8 +102,25 @@ export interface OpenRouterSettings {
   allowFallbacks: boolean
 }
 
-/** A named model configuration — provider, model id, and its own generation settings. The active
- *  one drives all story/character generation and the image-tagging base model. */
+/** Utility features that can use a different model than the preset's main (writing) model. */
+export type ModelRole = 'outline' | 'character' | 'beatPlan' | 'imageTagging' | 'summarizer'
+
+/** Per-feature override inside a model preset. The model and the generation settings can each
+ *  independently follow the preset's main model. provider/model/generation are always stored (even
+ *  while "same as main") so unchecking restores the previous custom choice. */
+export interface RoleConfig {
+  useMainModel: boolean
+  provider: ProviderId
+  model: string
+  useMainGeneration: boolean
+  generation: GenerationSettings
+}
+
+/** A named model configuration. The main provider/model/generation drive story writing (Continue,
+ *  Magic Complete passages, rewrite); `roles` optionally override them per utility feature.
+ *
+ *  Format is deliberately expandable: `roles` is a string-keyed map (missing role = same as main,
+ *  unknown roles are preserved), and unknown fields on presets/roles survive a load→save round-trip. */
 export interface ModelPreset {
   id: string
   name: string
@@ -115,6 +129,7 @@ export interface ModelPreset {
   generation: GenerationSettings
   /** Free-form notes about this model (e.g. what it's good at). Display-only. */
   notes: string
+  roles: Record<string, RoleConfig>
 }
 
 /** Rolling-summary settings. When enabled, the oldest unsummarized chapters are folded into a running
@@ -129,17 +144,12 @@ export interface SummarizerSettings {
   confirmBeforeSummarizing: boolean
   /** Editable instruction telling the model how to summarize. */
   prompt: string
-  /** Dedicated generation settings for the summarizer call. */
-  generation: GenerationSettings
-  /** Optional cheaper/faster model just for summarization; falls back to the active preset. */
-  modelOverride: TagModelOverride
+  // The summarizer model + generation settings live on each model preset (roles.summarizer).
 }
 
 export interface WorkspaceSettings {
-  selectedProvider: ProviderId
-  models: Record<ProviderId, string>
+  /** Active PROMPT preset (not a model preset). */
   activePresetId: string | null
-  generation: GenerationSettings
   image: ImageSettings
   summarizer: SummarizerSettings
   openrouter: OpenRouterSettings
@@ -273,10 +283,15 @@ const DEFAULT_IMAGE: ImageSettings = {
     { name: 'Multi Character 3rd Person', text: DEFAULT_TAG_INSTRUCTION },
     { name: 'Male POV', text: MALE_POV_TAG_INSTRUCTION }
   ],
-  activeTagPrompt: 'Multi Character 3rd Person',
-  // Fast-tagging defaults: low temperature, no extended thinking.
-  generation: { ...DEFAULT_GENERATION, temperature: 0.3, reasoning_level: 'off' },
-  tagModelOverride: { enabled: false, provider: 'anthropic', model: '' }
+  activeTagPrompt: 'Multi Character 3rd Person'
+}
+
+/** Legacy defaults for the old image/summarizer generation blocks — used only when migrating them
+ *  into model-preset roles (fast/faithful: low temperature, no extended thinking). */
+const LEGACY_UTILITY_GENERATION: GenerationSettings = {
+  ...DEFAULT_GENERATION,
+  temperature: 0.3,
+  reasoning_level: 'off'
 }
 
 const DEFAULT_SUMMARIZER_PROMPT = `You maintain a running synopsis of a novel so it can be written without re-reading every chapter.
@@ -309,16 +324,11 @@ const DEFAULT_SUMMARIZER: SummarizerSettings = {
   minChapters: 4,
   batchSize: 4,
   confirmBeforeSummarizing: true,
-  prompt: DEFAULT_SUMMARIZER_PROMPT,
-  // Low temperature, no extended thinking — summaries should be faithful, not creative.
-  generation: { ...DEFAULT_GENERATION, temperature: 0.3, reasoning_level: 'off' },
-  modelOverride: { enabled: false, provider: 'anthropic', model: '' }
+  prompt: DEFAULT_SUMMARIZER_PROMPT
 }
 
 function mergeSummarizer(raw: unknown): SummarizerSettings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<SummarizerSettings>
-  const rawOverride = (r.modelOverride ?? {}) as Partial<TagModelOverride>
-  const rawGen = (r.generation ?? {}) as Partial<GenerationSettings>
   return {
     enabled: typeof r.enabled === 'boolean' ? r.enabled : DEFAULT_SUMMARIZER.enabled,
     minChapters:
@@ -333,9 +343,7 @@ function mergeSummarizer(raw: unknown): SummarizerSettings {
       typeof r.confirmBeforeSummarizing === 'boolean'
         ? r.confirmBeforeSummarizing
         : DEFAULT_SUMMARIZER.confirmBeforeSummarizing,
-    prompt: typeof r.prompt === 'string' ? r.prompt : DEFAULT_SUMMARIZER.prompt,
-    generation: { ...DEFAULT_SUMMARIZER.generation, ...rawGen, reasoning_level: migrateReasoning(rawGen) },
-    modelOverride: { ...DEFAULT_SUMMARIZER.modelOverride, ...rawOverride }
+    prompt: typeof r.prompt === 'string' ? r.prompt : DEFAULT_SUMMARIZER.prompt
   }
 }
 
@@ -362,8 +370,6 @@ function mergeImage(raw: unknown): ImageSettings {
     tagTemperature?: number
     tagDisableThinking?: boolean
   }
-  const rawOverride = (r.tagModelOverride ?? {}) as Partial<TagModelOverride>
-
   // Tag prompts: keep valid entries; otherwise migrate the legacy single tagInstruction.
   let tagPrompts = Array.isArray(r.tagPrompts)
     ? r.tagPrompts.filter(
@@ -432,22 +438,6 @@ function mergeImage(raw: unknown): ImageSettings {
       ? r.activeSystemPrompt
       : systemPrompts[0].name
 
-  // Dedicated image generation settings. When absent (legacy), seed temperature from the old
-  // tagTemperature and leave reasoning off (matching the old tagDisableThinking default).
-  const rawImgGen = (r.generation ?? {}) as Partial<GenerationSettings>
-  const hasStoredGen = !!r.generation && typeof r.generation === 'object'
-  const generation: GenerationSettings = {
-    ...DEFAULT_IMAGE.generation,
-    ...rawImgGen,
-    temperature:
-      typeof rawImgGen.temperature === 'number'
-        ? rawImgGen.temperature
-        : typeof r.tagTemperature === 'number'
-          ? r.tagTemperature
-          : DEFAULT_IMAGE.generation.temperature,
-    reasoning_level: hasStoredGen ? migrateReasoning(rawImgGen) : 'off'
-  }
-
   // Drop superseded legacy scalar keys so they don't linger in the written JSON.
   const rest: Record<string, unknown> = { ...r }
   for (const k of [
@@ -456,7 +446,10 @@ function mergeImage(raw: unknown): ImageSettings {
     'tagSystemPrompt',
     'tagTemperature',
     'tagDisableThinking',
-    'tagInstruction'
+    'tagInstruction',
+    // Tagging model + generation moved into model presets (roles.imageTagging).
+    'generation',
+    'tagModelOverride'
   ]) {
     delete rest[k]
   }
@@ -471,14 +464,12 @@ function mergeImage(raw: unknown): ImageSettings {
     activeSystemPrompt,
     tagPrompts,
     activeTagPrompt,
-    generation,
     customPlaceholders: Array.isArray(r.customPlaceholders)
       ? r.customPlaceholders.filter(
           (p): p is CustomPlaceholder =>
             !!p && typeof p.find === 'string' && typeof p.replace === 'string'
         )
-      : [],
-    tagModelOverride: { ...DEFAULT_IMAGE.tagModelOverride, ...rawOverride }
+      : []
   }
 }
 
@@ -504,34 +495,25 @@ const DEFAULT_MODEL_PRESET: ModelPreset = {
   provider: 'anthropic',
   model: defaultModelFor('anthropic'),
   generation: { ...DEFAULT_GENERATION },
-  notes: ''
+  notes: '',
+  roles: {}
 }
 
 const DEFAULT_SETTINGS: WorkspaceSettings = {
-  selectedProvider: 'anthropic',
-  models: {
-    anthropic: defaultModelFor('anthropic'),
-    openai: defaultModelFor('openai'),
-    openrouter: defaultModelFor('openrouter'),
-    deepseek: defaultModelFor('deepseek'),
-    nanogpt: defaultModelFor('nanogpt'),
-    featherless: defaultModelFor('featherless')
-  },
   activePresetId: null,
-  generation: { ...DEFAULT_GENERATION },
   image: { ...DEFAULT_IMAGE },
   summarizer: { ...DEFAULT_SUMMARIZER },
   openrouter: { ...DEFAULT_OPENROUTER },
   magicAutoStart: true,
   magicBeatPrompt: DEFAULT_MAGIC_BEAT_PROMPT,
   outlineToBeats: false,
-  modelPresets: [{ ...DEFAULT_MODEL_PRESET, generation: { ...DEFAULT_GENERATION } }],
+  modelPresets: [{ ...DEFAULT_MODEL_PRESET, generation: { ...DEFAULT_GENERATION }, roles: {} }],
   activeModelPresetId: 'default'
 }
 
 /** Deep-copy the default model-preset list so callers can't mutate shared references. */
 function cloneModelPresets(presets: ModelPreset[]): ModelPreset[] {
-  return presets.map((p) => ({ ...p, generation: { ...p.generation } }))
+  return presets.map((p) => structuredClone(p))
 }
 
 const PROVIDER_IDS: ProviderId[] = ['anthropic', 'openai', 'openrouter', 'deepseek', 'nanogpt', 'featherless']
@@ -544,24 +526,124 @@ function mergeGeneration(raw: unknown): GenerationSettings {
   return { ...DEFAULT_GENERATION, ...g, reasoning_level: migrateReasoning(g) }
 }
 
-/** The provider/model/generation the next LLM call should use, from the active model preset. */
-export function resolveActiveModel(settings: WorkspaceSettings): {
+export interface ResolvedModel {
   provider: ProviderId
   model: string
   generation: GenerationSettings
-} {
+}
+
+/** The provider/model/generation a given feature should use, from the active model preset. A role
+ *  that's missing (or set to "same as main") falls back to the preset's main model/generation. */
+export function resolveModelFor(
+  settings: WorkspaceSettings,
+  role: ModelRole | 'main'
+): ResolvedModel {
   const presets = settings.modelPresets
   const active = presets.find((p) => p.id === settings.activeModelPresetId) ?? presets[0]
-  return { provider: active.provider, model: active.model, generation: active.generation }
+  const main: ResolvedModel = {
+    provider: active.provider,
+    model: active.model,
+    generation: active.generation
+  }
+  if (role === 'main') return main
+  const cfg = active.roles?.[role]
+  if (!cfg) return main
+  const customModel = !cfg.useMainModel && !!cfg.model.trim()
+  return {
+    provider: customModel ? cfg.provider : main.provider,
+    model: customModel ? cfg.model : main.model,
+    generation: cfg.useMainGeneration ? main.generation : cfg.generation
+  }
+}
+
+/** The main (story-writing) model of the active preset. */
+export function resolveActiveModel(settings: WorkspaceSettings): ResolvedModel {
+  return resolveModelFor(settings, 'main')
+}
+
+function mergeRole(raw: unknown): RoleConfig | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Partial<RoleConfig>
+  // Spread raw first so unknown (future) fields survive a load-and-save round-trip.
+  return {
+    ...(raw as object),
+    useMainModel: typeof r.useMainModel === 'boolean' ? r.useMainModel : true,
+    provider: coerceProvider(r.provider),
+    model: typeof r.model === 'string' ? r.model : '',
+    useMainGeneration: typeof r.useMainGeneration === 'boolean' ? r.useMainGeneration : true,
+    generation: mergeGeneration(r.generation)
+  }
+}
+
+/** Keyed map: unknown role keys are kept (a newer app version may have added them). */
+function mergeRoles(raw: unknown): Record<string, RoleConfig> {
+  const out: Record<string, RoleConfig> = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    const role = mergeRole(val)
+    if (role) out[key] = role
+  }
+  return out
+}
+
+/** One-time migration: build roles from the old image-tagging and summarizer overrides, which used
+ *  to live in the Images / Summarizer settings. Applied to presets saved before `roles` existed. */
+function legacyRoles(rawImage: unknown, rawSummarizer: unknown): Record<string, RoleConfig> {
+  const img = (rawImage && typeof rawImage === 'object' ? rawImage : {}) as {
+    generation?: unknown
+    tagModelOverride?: Partial<TagModelOverride>
+    tagTemperature?: unknown
+  }
+  const sum = (rawSummarizer && typeof rawSummarizer === 'object' ? rawSummarizer : {}) as {
+    generation?: unknown
+    modelOverride?: Partial<TagModelOverride>
+  }
+  const roles: Record<string, RoleConfig> = {}
+
+  // Image tagging always had its own generation settings (fast: low temp, no reasoning).
+  const tagOv = img.tagModelOverride ?? {}
+  const imgGen =
+    img.generation && typeof img.generation === 'object'
+      ? mergeGeneration(img.generation)
+      : {
+          ...LEGACY_UTILITY_GENERATION,
+          temperature:
+            typeof img.tagTemperature === 'number'
+              ? img.tagTemperature
+              : LEGACY_UTILITY_GENERATION.temperature
+        }
+  roles.imageTagging = {
+    useMainModel: !(tagOv.enabled && typeof tagOv.model === 'string' && tagOv.model.trim()),
+    provider: coerceProvider(tagOv.provider),
+    model: typeof tagOv.model === 'string' ? tagOv.model : '',
+    useMainGeneration: false,
+    generation: imgGen
+  }
+
+  // The summarizer used its own generation settings only together with its model override.
+  const sumOv = sum.modelOverride ?? {}
+  const sumCustom = !!(sumOv.enabled && typeof sumOv.model === 'string' && sumOv.model.trim())
+  roles.summarizer = {
+    useMainModel: !sumCustom,
+    provider: coerceProvider(sumOv.provider),
+    model: typeof sumOv.model === 'string' ? sumOv.model : '',
+    useMainGeneration: !sumCustom,
+    generation:
+      sum.generation && typeof sum.generation === 'object'
+        ? mergeGeneration(sum.generation)
+        : { ...LEGACY_UTILITY_GENERATION }
+  }
+  return roles
 }
 
 function mergeSettings(raw: unknown): WorkspaceSettings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<WorkspaceSettings> & {
     activePromptId?: string | null
+    /** Legacy single-model config, used only to seed the first preset. */
+    selectedProvider?: unknown
+    models?: Partial<Record<ProviderId, string>>
+    generation?: unknown
   }
-  const generation = mergeGeneration(r.generation)
-  const selectedProvider = r.selectedProvider ?? DEFAULT_SETTINGS.selectedProvider
-  const models = { ...DEFAULT_SETTINGS.models, ...(r.models ?? {}) }
 
   // Model presets: keep valid entries; otherwise seed a "Default" from the legacy single config so
   // existing workspaces upgrade transparently.
@@ -575,24 +657,31 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
             typeof p.model === 'string'
         )
         .map((p) => ({
+          // Spread raw first so unknown (future) preset fields survive a load-and-save round-trip.
+          ...p,
           id: p.id,
           name: p.name,
           provider: coerceProvider(p.provider),
           model: p.model,
           generation: mergeGeneration(p.generation),
-          notes: typeof p.notes === 'string' ? p.notes : ''
+          notes: typeof p.notes === 'string' ? p.notes : '',
+          roles:
+            p.roles && typeof p.roles === 'object'
+              ? mergeRoles(p.roles)
+              : legacyRoles(r.image, r.summarizer)
         }))
     : []
   if (modelPresets.length === 0) {
-    const seedProvider = coerceProvider(selectedProvider)
+    const seedProvider = coerceProvider(r.selectedProvider)
     modelPresets = [
       {
         id: 'default',
         name: 'Default',
         provider: seedProvider,
-        model: models[seedProvider] || defaultModelFor(seedProvider),
-        generation,
-        notes: ''
+        model: r.models?.[seedProvider] || defaultModelFor(seedProvider),
+        generation: mergeGeneration(r.generation),
+        notes: '',
+        roles: legacyRoles(r.image, r.summarizer)
       }
     ]
   }
@@ -603,11 +692,8 @@ function mergeSettings(raw: unknown): WorkspaceSettings {
       : modelPresets[0].id
 
   return {
-    selectedProvider,
-    models,
     // Back-compat: older settings used activePromptId.
     activePresetId: r.activePresetId ?? r.activePromptId ?? null,
-    generation,
     image: mergeImage(r.image),
     summarizer: mergeSummarizer(r.summarizer),
     openrouter: mergeOpenRouter(r.openrouter),
@@ -636,13 +722,14 @@ async function ensureWorkspaceLayout(path: string): Promise<void> {
 
 export async function readWorkspaceSettings(workspace: string): Promise<WorkspaceSettings> {
   const path = join(workspace, 'settings.json')
-  if (!existsSync(path)) return { ...DEFAULT_SETTINGS, models: { ...DEFAULT_SETTINGS.models } }
+  if (!existsSync(path)) {
+    return { ...DEFAULT_SETTINGS, modelPresets: cloneModelPresets(DEFAULT_SETTINGS.modelPresets) }
+  }
   try {
     return mergeSettings(JSON.parse(await readFile(path, 'utf-8')))
   } catch {
     return {
       ...DEFAULT_SETTINGS,
-      models: { ...DEFAULT_SETTINGS.models },
       modelPresets: cloneModelPresets(DEFAULT_SETTINGS.modelPresets)
     }
   }

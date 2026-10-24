@@ -4,8 +4,6 @@ import { useWorkspace } from '../stores/workspace'
 import { useTheme, THEMES } from '../stores/theme'
 import { askConfirm } from '../stores/dialog'
 import type { ProviderId } from '../types'
-import { ModelSelect } from './ModelSelect'
-import { ModelPresetsPanel } from './ModelPresets'
 import { OpenRouterRouting } from './OpenRouterRouting'
 import { MagicCompleteSettings } from './MagicCompleteSettings'
 
@@ -25,7 +23,7 @@ interface ProviderRowProps {
 }
 
 function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX.Element {
-  const { hasKey, saveKey, deleteKey, settings, setModel } = useSettings()
+  const { hasKey, saveKey, deleteKey, settings } = useSettings()
   const [input, setInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -47,7 +45,11 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
     setResult(null)
     try {
       const overrideKey = input.trim() || undefined
-      const model = settings?.models[provider] ?? null
+      // Test with the active preset's main model when it uses this provider; otherwise the
+      // provider's default model.
+      const presets = settings?.modelPresets ?? []
+      const active = presets.find((p) => p.id === settings?.activeModelPresetId) ?? presets[0]
+      const model = active && active.provider === provider ? active.model : null
       const r = await window.api.providers.test(provider, model, overrideKey, workspace)
       setResult(r)
     } finally {
@@ -81,7 +83,7 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
           </button>
         )}
       </div>
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2">
         <input
           type="password"
           value={input}
@@ -105,15 +107,6 @@ function ProviderRow({ provider, name, workspace }: ProviderRowProps): React.JSX
         >
           {testing ? 'Testing…' : 'Test'}
         </button>
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-ink-700 mb-1">Model</label>
-        <ModelSelect
-          provider={provider}
-          value={settings?.models[provider] ?? ''}
-          hasKey={hasKey[provider]}
-          onChange={(model) => setModel(workspace, provider, model)}
-        />
       </div>
       {result && (
         <div
@@ -172,9 +165,8 @@ export function Settings(): React.JSX.Element {
 
       <MagicCompleteSettings />
 
-      <ModelPresetsPanel />
-
-      <div className="font-medium text-ink-900 mb-2">Providers &amp; API keys</div>
+      <div className="font-medium text-ink-900 mb-1">Providers &amp; API keys</div>
+      <div className="text-sm text-ink-700 mb-3">Models are chosen in the Model Presets tab.</div>
       {PROVIDERS.map((p) => (
         <ProviderRow key={p.id} provider={p.id} name={p.name} workspace={workspace} />
       ))}

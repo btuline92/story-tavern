@@ -1,9 +1,8 @@
 import { ipcMain } from 'electron'
 import { ulid } from 'ulid'
 import { getKey } from '../lib/safeStore'
-import { readWorkspaceSettings, resolveActiveModel } from './workspace'
+import { readWorkspaceSettings, resolveActiveModel, resolveModelFor } from './workspace'
 import { loadStory, updateStoryMeta } from '../lib/storyStorage'
-import type { ProviderId } from './providers'
 import { getPreset, defaultPreset } from '../lib/presetStore'
 import { assemble, stripImageMarkers, type PromptEntry } from '../lib/promptAssembly'
 import { streamContinue } from '../lib/streamGeneration'
@@ -588,7 +587,7 @@ export function registerGenerationIpc(): void {
       chapterNumber: number
     ): Promise<{ beats: string[] } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
-      const { provider, model, generation } = resolveActiveModel(settings)
+      const { provider, model, generation } = resolveModelFor(settings, 'beatPlan')
       const apiKey = await getKey(provider)
       if (!apiKey) return { error: `No API key saved for ${provider}` }
 
@@ -675,7 +674,7 @@ export function registerGenerationIpc(): void {
       outlineCount?: number
     ): Promise<{ outlines: string[][] } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
-      const { provider, model, generation } = resolveActiveModel(settings)
+      const { provider, model, generation } = resolveModelFor(settings, 'outline')
       const apiKey = await getKey(provider)
       if (!apiKey) return { error: `No API key saved for ${provider}` }
 
@@ -755,7 +754,7 @@ export function registerGenerationIpc(): void {
       prompt: string
     ): Promise<{ character: GeneratedCharacter } | { error: string }> => {
       const settings = await readWorkspaceSettings(workspace)
-      const { provider, model, generation } = resolveActiveModel(settings)
+      const { provider, model, generation } = resolveModelFor(settings, 'character')
       const apiKey = await getKey(provider)
       if (!apiKey) return { error: `No API key saved for ${provider}` }
       if (!prompt || !prompt.trim()) return { error: 'Describe the character you want to create.' }
@@ -842,18 +841,8 @@ export function registerGenerationIpc(): void {
       const story = await loadStory(workspace, storyId)
       if (!story) return { error: `Story not found: ${storyId}` }
 
-      // Model: dedicated override if set, else the active preset. Hyperparameters follow the model —
-      // the active preset's when using its model (many models are picky, so we don't impose our own),
-      // the summarizer's own generation only when a different model is chosen.
-      const base = resolveActiveModel(settings)
-      let provider: ProviderId = base.provider
-      let model = base.model
-      let generation = base.generation
-      if (sum.modelOverride.enabled && sum.modelOverride.model) {
-        provider = sum.modelOverride.provider
-        model = sum.modelOverride.model
-        generation = sum.generation
-      }
+      // Model + hyperparameters: the active model preset's summarizer role (falls back to main).
+      const { provider, model, generation } = resolveModelFor(settings, 'summarizer')
       const apiKey = await getKey(provider)
       if (!apiKey) return { error: `No API key saved for ${provider}` }
 

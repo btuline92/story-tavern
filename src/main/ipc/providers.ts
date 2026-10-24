@@ -20,7 +20,8 @@ const DEFAULT_MODELS: Record<ProviderId, string> = {
   openrouter: 'openrouter/auto',
   deepseek: 'deepseek-chat',
   nanogpt: 'gpt-4o-mini',
-  featherless: 'meta-llama/Meta-Llama-3.1-8B-Instruct'
+  // Must be ungated: gated HF models (e.g. Meta Llama) 403 unless the account links HuggingFace.
+  featherless: 'Qwen/Qwen2.5-7B-Instruct'
 }
 
 const ANTHROPIC_FALLBACK_MODELS: ModelInfo[] = [
@@ -210,6 +211,32 @@ async function listOpenRouterModels(workspace: string | null): Promise<ModelInfo
   return list
 }
 
+/** Featherless's catalog is public, so no key is sent. The endpoint answers "404 Gone." to Node's
+ *  default `node` User-Agent, so send our own. Gated models are kept (usable once HuggingFace is
+ *  linked) but labeled. */
+async function listFeatherlessModels(workspace: string | null): Promise<ModelInfo[]> {
+  const url = 'https://api.featherless.ai/v1/models'
+  const r = await instrumented(workspace, 'featherless', null, 'list-models', url, {
+    method: 'GET',
+    headers: { 'user-agent': 'StoryTavern/1.0' }
+  })
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.body.slice(0, 200)}`)
+  const data =
+    (r.json as { data?: Array<{ id?: string; is_gated?: boolean; context_length?: number }> })
+      ?.data ?? []
+  const list: ModelInfo[] = []
+  for (const m of data) {
+    if (typeof m.id !== 'string') continue
+    const notes: string[] = []
+    if (typeof m.context_length === 'number') notes.push(`${Math.round(m.context_length / 1024)}k ctx`)
+    if (m.is_gated) notes.push('gated: needs HuggingFace linked')
+    const info: ModelInfo = { id: m.id }
+    if (notes.length > 0) info.description = notes.join(' · ')
+    list.push(info)
+  }
+  return list
+}
+
 async function listModels(
   workspace: string | null,
   provider: ProviderId,
@@ -231,13 +258,7 @@ async function listModels(
       if (!key) throw new Error('NanoGPT requires an API key to list models')
       return listOpenAIStyleModels(workspace, 'nanogpt', 'https://nano-gpt.com/api/v1/models', key)
     case 'featherless':
-      if (!key) throw new Error('Featherless requires an API key to list models')
-      return listOpenAIStyleModels(
-        workspace,
-        'featherless',
-        'https://api.featherless.ai/v1/models',
-        key
-      )
+      return listFeatherlessModels(workspace)
     default:
       throw new Error(`Unknown provider: ${String(provider)}`)
   }

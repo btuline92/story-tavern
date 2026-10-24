@@ -130,12 +130,6 @@ export interface CustomPlaceholder {
   replace: string
 }
 
-export interface TagModelOverride {
-  enabled: boolean
-  provider: ProviderId
-  model: string
-}
-
 export interface TagPrompt {
   name: string
   text: string
@@ -176,8 +170,6 @@ export interface ImageSettings {
   activeSystemPrompt: string
   tagPrompts: TagPrompt[]
   activeTagPrompt: string
-  generation: GenerationSettings
-  tagModelOverride: TagModelOverride
 }
 
 export interface SummarizerSettings {
@@ -186,13 +178,22 @@ export interface SummarizerSettings {
   batchSize: number
   confirmBeforeSummarizing: boolean
   prompt: string
-  generation: GenerationSettings
-  modelOverride: TagModelOverride
 }
 
 export interface OpenRouterSettings {
   order: string[]
   allowFallbacks: boolean
+}
+
+/** Utility features that can override a model preset's main model. */
+export type ModelRole = 'outline' | 'character' | 'beatPlan' | 'imageTagging' | 'summarizer'
+
+export interface RoleConfig {
+  useMainModel: boolean
+  provider: ProviderId
+  model: string
+  useMainGeneration: boolean
+  generation: GenerationSettings
 }
 
 export interface ModelPreset {
@@ -202,13 +203,12 @@ export interface ModelPreset {
   model: string
   generation: GenerationSettings
   notes: string
+  /** Keyed by ModelRole; a missing role means "same as main". Unknown keys are preserved. */
+  roles: Record<string, RoleConfig>
 }
 
 export interface WorkspaceSettings {
-  selectedProvider: ProviderId
-  models: Record<ProviderId, string>
   activePresetId: string | null
-  generation: GenerationSettings
   image: ImageSettings
   summarizer: SummarizerSettings
   openrouter: OpenRouterSettings

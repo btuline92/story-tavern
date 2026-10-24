@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useSettings } from '../stores/settings'
 import { useWorkspace } from '../stores/workspace'
-import type { ComfyObjectInfo, ImageSettings, ProviderId } from '../types'
-import { ModelSelect } from './ModelSelect'
+import type { ComfyObjectInfo, ImageSettings } from '../types'
 import { WorkflowEditor } from './WorkflowEditor'
-import { GenerationFields } from './GenerationSettings'
 import { askConfirm } from '../stores/dialog'
 
 /** Pick a name not already present, suffixing " 2", " 3", … on collision. */
@@ -15,15 +13,6 @@ function uniqueName(existing: string[], base: string): string {
   while (names.has(`${base} ${n}`)) n += 1
   return `${base} ${n}`
 }
-
-const PROVIDERS: { id: ProviderId; name: string }[] = [
-  { id: 'anthropic', name: 'Anthropic' },
-  { id: 'openai', name: 'OpenAI' },
-  { id: 'openrouter', name: 'OpenRouter' },
-  { id: 'deepseek', name: 'DeepSeek' },
-  { id: 'nanogpt', name: 'NanoGPT' },
-  { id: 'featherless', name: 'Featherless' }
-]
 
 function NumField({
   label,
@@ -113,7 +102,7 @@ function Toggle({
 
 export function ImageSettingsPanel(): React.JSX.Element {
   const workspace = useWorkspace((s) => s.path)!
-  const { settings, hasKey } = useSettings()
+  const { settings } = useSettings()
   const [draft, setDraft] = useState<ImageSettings | null>(settings?.image ?? null)
   const [saving, setSaving] = useState(false)
 
@@ -675,51 +664,9 @@ export function ImageSettingsPanel(): React.JSX.Element {
             className="w-full rounded-md border border-ink-200 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500"
           />
         </div>
-        <div className="mt-4 pt-4 border-t border-ink-200">
-          <div className="font-medium text-ink-900 mb-1">Tagging model settings</div>
-          <div className="text-xs text-ink-700 mb-3">
-            Dedicated generation settings for the tagging LLM call — image tagging no longer
-            inherits the base model&apos;s settings. Reasoning <strong>off</strong> keeps tagging
-            fast.
-          </div>
-          <GenerationFields value={draft.generation} onChange={(g) => set('generation', g)} />
-        </div>
-        <div className="mt-4 rounded-md border border-ink-200 bg-ink-50 p-3">
-          <Toggle
-            label="Use a different model for tagging"
-            checked={draft.tagModelOverride.enabled}
-            onChange={(v) => set('tagModelOverride', { ...draft.tagModelOverride, enabled: v })}
-          />
-          {draft.tagModelOverride.enabled && (
-            <div className="mt-3 grid grid-cols-[8rem_1fr] gap-2 items-start">
-              <select
-                value={draft.tagModelOverride.provider}
-                onChange={(e) =>
-                  set('tagModelOverride', {
-                    ...draft.tagModelOverride,
-                    provider: e.target.value as ProviderId
-                  })
-                }
-                className="rounded-md border border-ink-200 px-2 py-2 text-sm bg-surface"
-              >
-                {PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <ModelSelect
-                provider={draft.tagModelOverride.provider}
-                value={draft.tagModelOverride.model}
-                hasKey={hasKey[draft.tagModelOverride.provider]}
-                onChange={(model) => set('tagModelOverride', { ...draft.tagModelOverride, model })}
-                liveCommit
-              />
-            </div>
-          )}
-          {!draft.tagModelOverride.enabled && (
-            <div className="text-xs text-ink-700 mt-1">Uses the active story provider/model.</div>
-          )}
+        <div className="mt-4 pt-4 border-t border-ink-200 text-xs text-ink-700">
+          The tagging model and its generation settings are set per model preset (Model Presets →
+          Image tagging).
         </div>
       </div>
 

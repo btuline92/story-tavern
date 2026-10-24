@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import type {
   ImageSettings,
-  ModelPreset,
   OpenRouterSettings,
   ProviderId,
   WorkspaceSettings
@@ -13,8 +12,6 @@ interface SettingsState {
   loaded: boolean
   load: (workspace: string) => Promise<void>
   refreshKeys: () => Promise<void>
-  setProvider: (workspace: string, provider: ProviderId) => Promise<void>
-  setModel: (workspace: string, provider: ProviderId, model: string) => Promise<void>
   setActivePresetId: (workspace: string, id: string | null) => Promise<void>
   setImage: (workspace: string, patch: Partial<ImageSettings>) => Promise<void>
   setOpenRouter: (workspace: string, patch: Partial<OpenRouterSettings>) => Promise<void>
@@ -23,11 +20,6 @@ interface SettingsState {
   setOutlineToBeats: (workspace: string, value: boolean) => Promise<void>
   /** Set the model preset used for generation (used by the story-editor switcher). */
   setActiveModelPreset: (workspace: string, id: string) => Promise<void>
-  /** Patch the active model preset in place (used by the story-editor model picker). */
-  patchActiveModelPreset: (
-    workspace: string,
-    patch: Partial<Pick<ModelPreset, 'provider' | 'model'>>
-  ) => Promise<void>
   saveKey: (provider: ProviderId, key: string) => Promise<void>
   deleteKey: (provider: ProviderId) => Promise<void>
 }
@@ -64,20 +56,6 @@ export const useSettings = create<SettingsState>((set, get) => ({
   refreshKeys: async () => {
     const hasKey = await window.api.keys.has()
     set({ hasKey })
-  },
-  setProvider: async (workspace, provider) => {
-    const current = get().settings
-    if (!current) return
-    await persist(workspace, set, { ...current, selectedProvider: provider })
-  },
-  setModel: async (workspace, provider, model) => {
-    const current = get().settings
-    if (!current) return
-    const next: WorkspaceSettings = {
-      ...current,
-      models: { ...current.models, [provider]: model }
-    }
-    await persist(workspace, set, next)
   },
   setActivePresetId: async (workspace, id) => {
     const current = get().settings
@@ -117,16 +95,6 @@ export const useSettings = create<SettingsState>((set, get) => ({
     if (!current || current.activeModelPresetId === id) return
     if (!current.modelPresets.some((p) => p.id === id)) return
     await persist(workspace, set, { ...current, activeModelPresetId: id })
-  },
-  patchActiveModelPreset: async (workspace, patch) => {
-    const current = get().settings
-    if (!current) return
-    const activeId = current.activeModelPresetId ?? current.modelPresets[0]?.id
-    if (!activeId) return
-    const modelPresets = current.modelPresets.map((p) =>
-      p.id === activeId ? { ...p, ...patch } : p
-    )
-    await persist(workspace, set, { ...current, modelPresets })
   },
   saveKey: async (provider, key) => {
     await window.api.keys.set(provider, key)

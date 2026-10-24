@@ -21,7 +21,8 @@ A few things that make it different from a chat app:
    - [Characters](#characters)
    - [Gallery](#gallery)
    - [Photography](#photography)
-   - [Presets](#presets)
+   - [Prompt Presets](#prompt-presets)
+   - [Model Presets](#model-presets)
    - [Plugins](#plugins)
    - [Lorebooks](#lorebooks)
    - [Images (setup)](#images-setup)
@@ -37,7 +38,7 @@ A few things that make it different from a chat app:
 
 **Step 1 — Pick a workspace.** The first time you open the app, you choose (or create) a folder to be your **workspace**. This is where all your stories, characters, presets, and images are saved. You can switch to a different workspace later from **Settings**.
 
-**Step 2 — Connect an AI.** Go to the **Settings** tab → **Providers & API keys**. Pick the service you have an account with — **Anthropic, OpenAI, OpenRouter, DeepSeek, NanoGPT,** or **Featherless** — paste in your API key, and click **Test connection**. A green check means you're ready. (An API key is a password-like string you get from that service's website; the app stores it securely on your machine and never shows it to anyone else.)
+**Step 2 — Connect an AI.** Go to the **Settings** tab → **Providers & API keys**. Pick the service you have an account with — **Anthropic, OpenAI, OpenRouter, DeepSeek, NanoGPT,** or **Featherless** — paste in your API key, and click **Test connection**. A green check means you're ready. (An API key is a password-like string you get from that service's website; the app stores it securely on your machine and never shows it to anyone else.) Then open the **Model Presets** tab and pick the model to write with.
 
 **Step 3 — (Optional) Set up images.** If you want illustrations, you'll need **ComfyUI** (a free local image generator) running on your computer. Turn on image generation and point the app at it under **Settings → Images**. You can skip this entirely and just write.
 
@@ -54,7 +55,7 @@ A few things that make it different from a chat app:
 - **Character** — a reusable "card" describing a person in your stories: their looks, personality, voice, and so on. One character can appear in many stories.
 - **Cast** — the set of characters attached to a story. Their descriptions are given to the AI while it writes.
 - **Preset** — the recipe that decides *how the prompt is built* — which pieces of information (character description, premise, story-so-far, etc.) get sent to the AI and in what order. Most people can leave this alone.
-- **Model preset** — a saved choice of *which AI model* to write with (provider + model + creativity settings). You can keep several and switch between them.
+- **Model preset** — a saved choice of *which AI model* to write with (provider + model + creativity settings), plus optional different models for helper tasks like outline suggestions or image tagging. You can keep several and switch between them.
 - **Provider / API key** — the AI service you use and the key that authorizes it.
 - **Plugin** — a reusable snippet of instructions you can switch on per story (e.g. "favor slow-burn tension").
 - **Lorebook** — a collection of background facts that get injected into the prompt **only when a keyword appears** (e.g. mention "the Iron Court" and its lore is added automatically).
@@ -89,7 +90,7 @@ Everything **auto-saves** as you go.
 
 ## 4. The screens
 
-The app is organized as a row of tabs down the left side: **Stories, Characters, Gallery, Photography, Presets, Plugins, Lorebooks, Images, Summarizer, Logs, Settings.**
+The app is organized as a row of tabs down the left side: **Stories, Characters, Gallery, Photography, Prompt Presets, Model Presets, Plugins, Lorebooks, Images, Summarizer, Logs, Settings.**
 
 ---
 
@@ -129,7 +130,7 @@ Once a story is open, the editor has three parts. A back button (**← Stories**
 **Center column — the writing area.** Top to bottom:
 
 - A **chapter title** box, a live **word count** and save indicator (saved / unsaved / saving…), and buttons: **Copy text** (copies the chapter's prose without images), **Clear** (empties the chapter — see below), **📖 Read** (opens the reader), and a **Details** toggle for the right panel.
-- A **model row** to choose which AI model preset to write this story with.
+- A **model row** to switch which model preset is active. (Models themselves are edited in the **Model Presets** tab.)
 - A **Chapter outline** box for your notes on what happens in this chapter, with **✨ Suggest outlines** to get AI-generated options.
 - The **prose editor** itself — type freely. This is also where inline images appear.
 - The **action bar** at the bottom, with a place to type a one-line **author's note** and the main buttons (see below).
@@ -234,7 +235,7 @@ Your cast of reusable characters. A list on the left, an editor on the right.
 - **Alternate greetings** — extra opening messages you can add/remove.
 - **Advanced** (collapsible) — **Creator notes**, a card-level **System prompt** (the character's own behavioral instructions), and **Post-history instructions** (final instructions placed late in the prompt).
 
-> **Where do the card's "System prompt" and "Post-history instructions" go?** The System prompt is injected as the **Character instructions** block in your preset (which you can position — see [Presets](#presets)), and Post-history instructions are placed near the end of the prompt for emphasis. Leave them blank if you don't need them.
+> **Where do the card's "System prompt" and "Post-history instructions" go?** The System prompt is injected as the **Character instructions** block in your preset (which you can position — see [Prompt Presets](#prompt-presets)), and Post-history instructions are placed near the end of the prompt for emphasis. Leave them blank if you don't need them.
 
 **Create with AI (✨ AI).** Describe a character in a sentence or two, click **✨ Generate**, and the model fills in a full card (name, description, personality, scenario, first message, appearance tags). Preview it and click **Use this** to save and open it for final edits.
 
@@ -269,9 +270,9 @@ A standalone image studio, separate from any story — for experimenting with pi
 
 ---
 
-### Presets
+### Prompt Presets
 
-A preset controls **how the prompt sent to the AI is assembled** — which pieces of information are included and in what order. Most people never need to touch this; it's here for power users.
+The **Prompt Presets** tab holds prompt presets (not to be confused with [Model Presets](#model-presets)). A prompt preset controls **how the prompt sent to the AI is assembled** — which pieces of information are included and in what order. Most people never need to touch this; it's here for power users.
 
 A preset is a stack of **blocks**. Each block is either:
 
@@ -290,6 +291,22 @@ Because it's block-based, you can, for example, **remove the Scenario block** en
 Other controls: **New** and **Import…** (imports a SillyTavern preset), **Set active** (make this the default preset for new generations), **Export…**, **Delete**, and **Save**. Presets round-trip with SillyTavern's format.
 
 > The built-in **Default** preset is generated fresh each time, so edits to it don't stick. To customize permanently, create (or duplicate) a preset, edit it, and **Set active**.
+
+---
+
+### Model Presets
+
+The **Model Presets** tab is the one place where you choose AI models. A **model preset** bundles:
+
+- A **main model** — provider, model, and its generation settings (**temperature**, **reasoning effort**, etc.). This writes your story: Continue, Magic Complete passages, and highlight-to-act rewrites.
+- **Notes** — your own reminders about what the model is good at.
+- **Utility models** — one collapsible section per helper task: **Outline suggestions**, **Character creation**, **Beat planning (Magic Complete)**, **Image tagging**, and **Summarizer**. Each has two checkboxes:
+  - **Model: same as main** — uncheck to pick a different (e.g. cheaper or faster) provider and model for just that task.
+  - **Generation settings: same as main** — uncheck to give that task its own settings (for example, reasoning off so image tagging stays fast).
+
+  The collapsed row shows a one-line summary, such as "Same as main" or "deepseek-chat · custom settings". If you uncheck a box, pick something, and re-check it, your pick is remembered for next time.
+
+Use **Active for generation** to choose which preset is in use (you can also switch it from the story editor's model row). **+ New** starts a preset where every utility model is "same as main". **Duplicate** copies the preset you're editing, including all its utility models. That's handy when you only want to swap the main model. Remember to press **Save**.
 
 ---
 
@@ -326,7 +343,7 @@ The **Images** tab (headed "Image generation") is where you connect and configur
 - **Workflow** — which ComfyUI "recipe" to run (with **New… / Edit… / Delete**). Advanced users can edit the workflow's JSON.
 - **Generation parameters** — the usual image knobs: **Model (checkpoint), VAE, Sampler, Scheduler, Steps, CFG scale, Width/Height, Seed** (-1 for random), and advanced options. Use **↻ Fetch model/sampler lists** to populate the pick-lists from ComfyUI.
 - **Prompt prefix set** — named style bundles, each with a **positive prefix** and a **negative prompt**, so you can switch the overall look (e.g. anime vs realistic) in one click.
-- **Tag generation** — settings for the AI that converts prose into image prompts: how it learns each character's looks (**Character description** vs **Appearance tags**), the **Tag system prompt** and **scene instruction** (both switchable and editable), and an option to use a **different, cheaper model** just for tagging.
+- **Tag generation** — settings for the AI that converts prose into image prompts: how it learns each character's looks (**Character description** vs **Appearance tags**), the **Tag system prompt** and **scene instruction** (both switchable and editable). The tagging model itself is chosen per model preset (**Model Presets → Image tagging**).
 
 If you don't want images, you can leave this whole tab alone.
 
@@ -343,7 +360,7 @@ Settings on this tab:
 - **Chapters per summary (M)** — how many old chapters are folded in each time it runs.
 - **Ask before summarizing** — confirm with you before each run instead of doing it silently.
 - **Summarizer prompt** — the instructions the AI follows when writing the summary (you can customize tone and detail).
-- **Use a different model for summarizing** — optionally run summaries on a cheaper/faster model than your main writing model.
+- The model used for summaries is chosen per model preset (**Model Presets → Summarizer**). There you can run summaries on a cheaper or faster model than your main writing model.
 
 You can view, hand-edit, delete, or regenerate the actual summary text from a story's **Details → Summary** section — handy if you edit an early chapter and want the summary to reflect it.
 
@@ -362,12 +379,11 @@ The **Logs** tab (headed "API logs") records every call the app makes to an AI o
 
 ### Settings
 
-General app configuration (image and summarizer settings have their own tabs). See the [full reference](#5-settings-reference) below. In short:
+General app configuration. Image settings, summarizer settings, and model presets have their own tabs. See the [full reference](#5-settings-reference) below. In short:
 
 - **Theme** — the app's color scheme.
 - **Workspace** — shows your current folder and lets you **Switch workspace…**.
 - **Magic Complete** — auto-start behavior, the editable beat-planning prompt, and the outline→beats option.
-- **Model presets** — your saved AI-model configurations.
 - **Providers & API keys** — connect your AI accounts.
 - **OpenRouter routing** — advanced routing options if you use OpenRouter.
 
@@ -386,11 +402,8 @@ Shows the folder your data lives in. **Switch workspace…** lets you open or cr
 - **Beat-planning prompt** — the exact instructions the AI uses to break an outline into beats. You can edit it (for example, to change how many beats it tends to produce) and **Reset to default**. It must tell the model to return a list of beats.
 - **Outline → beats** — when on, applying a suggested outline also fills the chapter's Magic Complete beats, so you can start writing without re-planning.
 
-### Model presets
-A **model preset** is a saved bundle of *which AI model to use* plus its creativity settings (things like **temperature** and **reasoning effort**). Keep several — for example a strong model for prose and a cheap one for quick tasks — and set which is **active**. The story editor lets you switch the model preset per story.
-
 ### Providers & API keys
-For each service you use — **Anthropic, OpenAI, OpenRouter, DeepSeek, NanoGPT, Featherless** — paste your **API key** and **Test** the connection. Keys are stored securely on your computer. You only need to set up the provider(s) you actually use.
+For each service you use — **Anthropic, OpenAI, OpenRouter, DeepSeek, NanoGPT, Featherless** — paste your **API key** and **Test** the connection. **Test** uses the active model preset's main model if it's from that provider; otherwise it uses the provider's default model. Models are picked in the **Model Presets** tab. Keys are stored securely on your computer. You only need to set up the provider(s) you actually use.
 
 ### OpenRouter routing
 If you use OpenRouter (which can route to many models), this lets you set a preferred **provider order** and whether to **allow fallbacks**. Ignore it if you don't use OpenRouter.
@@ -415,4 +428,4 @@ If you use OpenRouter (which can route to many models), this lets you set a pref
 
 **Where are my files?** Everything is in your **workspace** folder. Characters, stories, presets, plugins, lorebooks, and images are all plain files there — safe to back up. **Logs → Reveal in Explorer** opens the logs folder.
 
-**Nothing seems to save.** The app auto-saves as you type. For screens with an explicit **Save** button (Presets, Lorebooks, Summarizer, character editor), the button grays out to indicate a successful save.
+**Nothing seems to save.** The app auto-saves as you type. For screens with an explicit **Save** button (Prompt Presets, Model Presets, Lorebooks, Summarizer, character editor), the button grays out to indicate a successful save.
