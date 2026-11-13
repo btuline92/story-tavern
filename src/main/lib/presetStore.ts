@@ -12,6 +12,7 @@ export type MarkerType =
   | 'scenario'
   | 'dialogue_examples'
   | 'story_premise'
+  | 'story_progression'
   | 'manuscript'
   | 'unsupported'
 
@@ -61,6 +62,7 @@ const ST_MARKER_MAP: Record<string, MarkerType> = {
   // import/export. Real SillyTavern harmlessly ignores these unknown identifiers.
   storyPremise: 'story_premise',
   charSystemPrompt: 'char_system_prompt',
+  storyProgression: 'story_progression',
   personaDescription: 'unsupported',
   worldInfoBefore: 'unsupported',
   worldInfoAfter: 'unsupported',
@@ -76,7 +78,8 @@ const MARKER_TO_ST: Partial<Record<MarkerType, string>> = {
   dialogue_examples: 'dialogueExamples',
   manuscript: 'chatHistory',
   story_premise: 'storyPremise',
-  char_system_prompt: 'charSystemPrompt'
+  char_system_prompt: 'charSystemPrompt',
+  story_progression: 'storyProgression'
 }
 
 function normalizeRole(role: unknown): BlockRole {
@@ -222,6 +225,13 @@ export function defaultPreset(): Preset {
         content: ''
       }),
       mk({ name: 'Scenario', role: 'system', marker: true, markerType: 'scenario', content: '' }),
+      mk({
+        name: 'Story progression',
+        role: 'system',
+        marker: true,
+        markerType: 'story_progression',
+        content: ''
+      }),
       mk({ name: 'Manuscript', role: 'user', marker: true, markerType: 'manuscript', content: '' })
     ]
   }

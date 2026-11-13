@@ -126,6 +126,7 @@ export function registerImageIpc(): void {
           image,
           characters,
           passageText,
+          imageInfo: story.chapters.find((c) => c.number === chapterNumber)?.image_info,
           tagInstruction,
           systemPrompt
         })

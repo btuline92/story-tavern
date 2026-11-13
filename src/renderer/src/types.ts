@@ -43,6 +43,7 @@ export type MarkerType =
   | 'scenario'
   | 'dialogue_examples'
   | 'story_premise'
+  | 'story_progression'
   | 'manuscript'
   | 'unsupported'
 
@@ -332,6 +333,10 @@ export interface Chapter {
   number: number
   title: string
   outline: string
+  /** Chapter context sent only with image-generation (tagging) requests. */
+  image_info: string
+  /** Progression snapshot as of this chapter; seeded from the previous chapter. */
+  progression: string
   content: string
   model_preset_id: string | null
   magic_beats: string[]

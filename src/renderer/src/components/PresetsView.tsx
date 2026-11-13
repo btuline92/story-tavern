@@ -12,6 +12,7 @@ const MARKER_LABELS: Record<MarkerType, string> = {
   scenario: 'Scenario',
   dialogue_examples: 'Dialogue examples',
   story_premise: 'Story premise',
+  story_progression: 'Story progression (chapter notes)',
   manuscript: 'Manuscript (story so far)',
   unsupported: 'Unsupported (ignored)'
 }

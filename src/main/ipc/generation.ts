@@ -489,6 +489,7 @@ export function registerGenerationIpc(): void {
           number: c.number,
           title: c.title,
           outline: c.outline,
+          progression: c.progression,
           content: c.content
         })),
         activeChapterNumber: chapterNumber,
@@ -1045,6 +1046,7 @@ export function registerGenerationIpc(): void {
           number: c.number,
           title: c.title,
           outline: c.outline,
+          progression: c.progression,
           content: c.content
         })),
         activeChapterNumber: chapterNumber,

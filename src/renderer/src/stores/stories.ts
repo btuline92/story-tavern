@@ -106,6 +106,8 @@ interface StoriesState {
     patch: {
       title?: string
       outline?: string
+      image_info?: string
+      progression?: string
       content?: string
       model_preset_id?: string | null
       magic_beats?: string[]

@@ -14,7 +14,14 @@ export interface AssemblyContext {
   characters: TavernV2Data[]
   storyTitle: string
   storyPremise: string
-  chapters: Array<{ number: number; title: string; outline: string; content: string }>
+  chapters: Array<{
+    number: number
+    title: string
+    outline: string
+    content: string
+    /** Per-chapter progression notes; see storyProgressionEntry. */
+    progression?: string
+  }>
   activeChapterNumber: number
   userNote?: string
   /** When set (Magic Complete), the single story beat the model should write as the next
@@ -132,6 +139,24 @@ function upcomingOutlinesText(ctx: AssemblyContext): string {
   return lines.join('\n\n')
 }
 
+/** The story-progression snapshot in effect for the active chapter: its own notes, or the nearest
+ *  earlier chapter's when its box is empty. Each chapter's notes are a running snapshot (new
+ *  chapters are seeded from the previous one), so only one is sent — sending every chapter's would
+ *  repeat the carried-over notes. They take precedence over the (static) character sheets. */
+function storyProgressionEntry(ctx: AssemblyContext): PromptEntry | null {
+  const latest = ctx.chapters
+    .filter((c) => c.number <= ctx.activeChapterNumber && c.progression?.trim())
+    .sort((a, b) => b.number - a.number)[0]
+  if (!latest) return null
+  return {
+    role: 'system',
+    content:
+      'STORY PROGRESSION — where characters and circumstances stand now, after the plot so far. ' +
+      'Where this conflicts with the character descriptions above, this takes precedence:\n' +
+      interpolate(latest.progression!.trim(), ctx)
+  }
+}
+
 // Markers carry a fixed role intrinsic to their meaning.
 function expandMarker(markerType: MarkerType, ctx: AssemblyContext): PromptEntry | null {
   switch (markerType) {
@@ -149,6 +174,8 @@ function expandMarker(markerType: MarkerType, ctx: AssemblyContext): PromptEntry
       return ctx.storyPremise.trim()
         ? { role: 'system', content: `Story premise:\n${ctx.storyPremise.trim()}` }
         : null
+    case 'story_progression':
+      return storyProgressionEntry(ctx)
     case 'manuscript': {
       const ms = manuscriptText(ctx)
       return ms
@@ -222,10 +249,22 @@ export function assemble(preset: Preset, ctx: AssemblyContext): PromptEntry[] {
       }
     : null
   let lorePushed = false
+  // Story progression is an orderable preset marker. Presets made before it existed have no such
+  // block, so for those it's inserted automatically before the lore/summary/manuscript (a preset
+  // that has the block but disables it opts out).
+  const progressionInPreset = preset.blocks.some(
+    (b) => b.marker && b.markerType === 'story_progression'
+  )
+  let progressionPushed = progressionInPreset
 
   // Pushes world-info lore then the running summary, right before the manuscript. (The character's
   // own `system_prompt` is an orderable preset marker — `char_system_prompt` — not injected here.)
   const pushPreManuscript = (): void => {
+    if (!progressionPushed) {
+      const p = storyProgressionEntry(ctx)
+      if (p) entries.push(p)
+      progressionPushed = true
+    }
     if (loreEntry && !lorePushed) {
       entries.push(loreEntry)
       lorePushed = true

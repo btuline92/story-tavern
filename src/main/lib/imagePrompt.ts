@@ -25,12 +25,14 @@ export function buildTagEntries(opts: {
   image: ImageSettings
   characters: TavernV2Data[]
   passageText: string
+  /** The chapter's Image info (author-written context for pictures); empty = omitted. */
+  imageInfo?: string
   /** Resolved text of the active tag prompt (the "scene instruction"). */
   tagInstruction: string
   /** Resolved text of the active tagging system prompt. */
   systemPrompt: string
 }): PromptEntry[] {
-  const { image, characters, passageText, tagInstruction, systemPrompt } = opts
+  const { image, characters, passageText, imageInfo, tagInstruction, systemPrompt } = opts
   const parts: string[] = []
 
   // Character reference comes FIRST — before the task and the story passage — so the model
@@ -54,6 +56,16 @@ export function buildTagEntries(opts: {
       'CHARACTER REFERENCE — derive each character’s body, skin, hair, and eyes from these ' +
         'details (do NOT invent appearance):\n\n' +
         blocks.join(joiner)
+    )
+  }
+
+  // Chapter context goes after the character sheets and before the task: it describes the setting
+  // the scene happens in, which the passage alone often doesn't restate.
+  if (imageInfo?.trim()) {
+    parts.push(
+      'CHAPTER CONTEXT — background for this chapter (setting, time of day, outfits, mood). Use ' +
+        'it where the scene doesn’t say otherwise:\n' +
+        imageInfo.trim()
     )
   }
 

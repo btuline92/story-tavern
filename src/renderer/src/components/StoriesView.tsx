@@ -125,6 +125,8 @@ function StoryEditor({
   const activeModelPresetId = settings?.activeModelPresetId ?? null
   const [titleDraft, setTitleDraft] = useState('')
   const [outlineDraft, setOutlineDraft] = useState('')
+  const [imageInfoDraft, setImageInfoDraft] = useState('')
+  const [progressionDraft, setProgressionDraft] = useState('')
   const [contentDraft, setContentDraft] = useState('')
   const [userNote, setUserNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -157,6 +159,8 @@ function StoryEditor({
     if (!chapter) {
       setTitleDraft('')
       setOutlineDraft('')
+      setImageInfoDraft('')
+      setProgressionDraft('')
       setContentDraft('')
       initializedFor.current = null
       return
@@ -165,6 +169,8 @@ function StoryEditor({
       initializedFor.current = chapter.id
       setTitleDraft(chapter.title)
       setOutlineDraft(chapter.outline)
+      setImageInfoDraft(chapter.image_info)
+      setProgressionDraft(chapter.progression)
       setContentDraft(chapter.content)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,6 +181,8 @@ function StoryEditor({
     if (!chapter) return
     setTitleDraft(chapter.title)
     setOutlineDraft(chapter.outline)
+    setImageInfoDraft(chapter.image_info)
+    setProgressionDraft(chapter.progression)
     setContentDraft(chapter.content)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalChapterRevision])
@@ -182,6 +190,8 @@ function StoryEditor({
   const dirty = chapter
     ? titleDraft !== chapter.title ||
       outlineDraft !== chapter.outline ||
+      imageInfoDraft !== chapter.image_info ||
+      progressionDraft !== chapter.progression ||
       contentDraft !== chapter.content
     : false
 
@@ -192,6 +202,8 @@ function StoryEditor({
       await updateChapter(workspace, chapter.number, {
         title: titleDraft,
         outline: outlineDraft,
+        image_info: imageInfoDraft,
+        progression: progressionDraft,
         content: contentDraft
       })
     } finally {
@@ -210,7 +222,7 @@ function StoryEditor({
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [titleDraft, outlineDraft, contentDraft])
+  }, [titleDraft, outlineDraft, imageInfoDraft, progressionDraft, contentDraft])
 
   // Auto-scroll the streaming-preview box to the bottom on each new chunk.
   // Must be declared before any early return so hook order stays consistent.
@@ -593,6 +605,42 @@ function StoryEditor({
               placeholder="A few sentences sketching what should happen here. Leave empty to skip."
               className="w-full rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-100"
             />
+            {/* Keyed by chapter so it opens by default when the chapter already has notes. */}
+            <details key={`prog-${chapter?.id}`} open={!!chapter?.progression} className="mt-2">
+              <summary className="cursor-pointer select-none text-[10px] font-semibold uppercase tracking-wide text-ink-700">
+                Story progression
+                <span className="ml-2 font-normal normal-case text-ink-700/70">
+                  (where characters stand now — sent to the model, overrides character sheets; new chapters start from the previous one)
+                </span>
+              </summary>
+              <textarea
+                value={progressionDraft}
+                onChange={(e) => setProgressionDraft(e.target.value)}
+                disabled={busy}
+                rows={2}
+                placeholder="e.g. Mara no longer trusts the guild after the betrayal. Theo has lost his shy streak."
+                className="mt-1 w-full rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-100"
+              />
+            </details>
+            {imageEnabled && (
+              // Keyed by chapter so it opens by default when the chapter already has image info.
+              <details key={chapter?.id} open={!!chapter?.image_info} className="mt-2">
+                <summary className="cursor-pointer select-none text-[10px] font-semibold uppercase tracking-wide text-ink-700">
+                  Image info
+                  <span className="ml-2 font-normal normal-case text-ink-700/70">
+                    (sent only with image generation — chapter context for pictures)
+                  </span>
+                </summary>
+                <textarea
+                  value={imageInfoDraft}
+                  onChange={(e) => setImageInfoDraft(e.target.value)}
+                  disabled={busy}
+                  rows={2}
+                  placeholder="e.g. Night, rain-soaked city streets, neon lighting. Mara wears her red raincoat."
+                  className="mt-1 w-full rounded-md border border-ink-200 bg-surface px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-accent-500 disabled:bg-ink-100"
+                />
+              </details>
+            )}
           </div>
         )}
 

@@ -76,6 +76,13 @@ export interface Chapter {
    *  guidance for the active chapter (inline in the manuscript) and as an
    *  "upcoming chapters" block for future chapters that aren't written yet. */
   outline: string
+  /** Chapter context sent only with image-generation (tagging) requests — settings, outfits,
+   *  lighting, anything the passage alone won't say. Never sent to the story model. */
+  image_info: string
+  /** Character/story progression notes as of this chapter (e.g. "Mara no longer trusts the guild").
+   *  A running snapshot: new chapters are seeded from the previous one, and the story model gets
+   *  the active chapter's notes (or the nearest earlier chapter's), overriding the character sheets. */
+  progression: string
   content: string
   /** Id of the model preset this chapter was last generated with (restored when reopened). */
   model_preset_id: string | null
@@ -93,6 +100,8 @@ interface ChapterFrontmatter {
   number: number
   title: string
   outline?: string
+  image_info?: string
+  progression?: string
   model_preset_id?: string | null
   magic_beats?: string[]
   magic_beats_done?: number
@@ -181,6 +190,8 @@ async function readChapter(
     return {
       ...fm,
       outline: typeof fm.outline === 'string' ? fm.outline : '',
+      image_info: typeof fm.image_info === 'string' ? fm.image_info : '',
+      progression: typeof fm.progression === 'string' ? fm.progression : '',
       model_preset_id: typeof fm.model_preset_id === 'string' ? fm.model_preset_id : null,
       magic_beats: Array.isArray(fm.magic_beats)
         ? fm.magic_beats.filter((b): b is string => typeof b === 'string')
@@ -199,6 +210,8 @@ async function writeChapter(workspace: string, slug: string, chapter: Chapter): 
     number: chapter.number,
     title: chapter.title,
     outline: chapter.outline,
+    image_info: chapter.image_info,
+    progression: chapter.progression,
     model_preset_id: chapter.model_preset_id,
     magic_beats: chapter.magic_beats,
     magic_beats_done: chapter.magic_beats_done,
@@ -311,6 +324,8 @@ export async function createStory(
     number: 1,
     title: 'Chapter 1',
     outline: '',
+    image_info: '',
+    progression: '',
     content: '',
     model_preset_id: null,
     magic_beats: [],
@@ -386,6 +401,8 @@ export async function deleteStory(workspace: string, id: string): Promise<void> 
 export interface UpdateChapterInput {
   title?: string
   outline?: string
+  image_info?: string
+  progression?: string
   content?: string
   model_preset_id?: string | null
   magic_beats?: string[]
@@ -406,6 +423,8 @@ export async function updateChapter(
     ...chapter,
     title: patch.title !== undefined ? patch.title : chapter.title,
     outline: patch.outline !== undefined ? patch.outline : chapter.outline,
+    image_info: patch.image_info !== undefined ? patch.image_info : chapter.image_info,
+    progression: patch.progression !== undefined ? patch.progression : chapter.progression,
     content: patch.content !== undefined ? patch.content : chapter.content,
     model_preset_id:
       patch.model_preset_id !== undefined ? patch.model_preset_id : chapter.model_preset_id,
@@ -447,11 +466,16 @@ export async function addChapter(
   const nextNumber =
     story.chapters.length === 0 ? 1 : Math.max(...story.chapters.map((c) => c.number)) + 1
   const now = new Date().toISOString()
+  // Progression is a running snapshot of where characters stand, so a new chapter starts from the
+  // previous chapter's notes for the author to edit forward.
+  const previous = story.chapters.find((c) => c.number === nextNumber - 1)
   const chapter: Chapter = {
     id: ulid(),
     number: nextNumber,
     title: title ?? `Chapter ${nextNumber}`,
     outline: '',
+    image_info: '',
+    progression: previous?.progression ?? '',
     content: '',
     model_preset_id: null,
     magic_beats: [],
@@ -554,6 +578,8 @@ export async function duplicateStory(
           number: i + 1,
           title: c.title,
           outline: c.outline,
+          image_info: c.image_info,
+          progression: c.progression,
           content: copyContent ? c.content : '',
           model_preset_id: c.model_preset_id,
           magic_beats: copyBeats ? [...c.magic_beats] : [],
@@ -568,6 +594,8 @@ export async function duplicateStory(
             number: 1,
             title: 'Chapter 1',
             outline: '',
+            image_info: '',
+            progression: '',
             content: '',
             model_preset_id: null,
             magic_beats: [],
