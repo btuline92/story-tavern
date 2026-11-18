@@ -189,10 +189,8 @@ function openAICompatRequest(
       body.reasoning_effort = req.generation.reasoning_level
     } else if (options.provider === 'featherless') {
       // Featherless turns thinking on via the chat template (documented: chat_template_kwargs
-      // .enable_thinking) for models that support it. reasoning_effort is undocumented there but
-      // harmless, and kept in case a model's template honours it.
+      // .enable_thinking) for models that support it. It has no effort levels.
       body.chat_template_kwargs = { enable_thinking: true }
-      body.reasoning_effort = req.generation.reasoning_level
     }
     // DeepSeek direct: no API param — user picks a reasoning-capable model id
     // (e.g. deepseek-reasoner). The streamed `reasoning_content` will still be captured.
